@@ -15,6 +15,7 @@ class TcpClient: protected IClient
     
 public:
     TcpClient() : m_context(), m_socket(m_context) {}
+    virtual ~ TcpClient() = default;
     
     void write( const std::string& message )
     {

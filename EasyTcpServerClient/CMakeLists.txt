@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 
-project(TestConsole LANGUAGES CXX)
+project(DbgServerClient LANGUAGES CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -18,15 +18,17 @@ set(BOOST_LIB_DIR "/usr/local/lib")
 #find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
 #find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core)
 
-add_executable(TestConsole
+add_executable(DbgServerClient
   main.cpp
   TcpClient.h
+  TicTacClient.h
+  DbgTicTacClient.h
   TcpServer.h
   TicTacTcpServer.h
 )
-#target_link_libraries(TestConsole Qt${QT_VERSION_MAJOR}::Core)
+#target_link_libraries(DbgServerClient Qt${QT_VERSION_MAJOR}::Core)
 
 include_directories("/usr/local/include")
 
-install(TARGETS TestConsole
+install(TARGETS DbgServerClient
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})

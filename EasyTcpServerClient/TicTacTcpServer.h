@@ -15,9 +15,15 @@ public:
     using ClientName = const std::string;
 
     virtual bool addClient( ClientName&, const std::weak_ptr<TicTacClientSession>&, std::string& errorText ) = 0;
-    virtual std::string getPlayerListResponse( const std::string requesterName ) = 0;
+    virtual std::string getPlayerListResponse() = 0;
+    
+    virtual void sendPlayerListToAll() = 0;
 
+    virtual std::weak_ptr<TicTacClientSession> sendInvitaion( std::string senderPlayerName, std::string playerName, std::string& outErrorText ) = 0;
+
+    //virtual bool onAcceptInvitaion( std::string senderPlayerName, std::string playerName, std::string& outErrorText ) = 0;
 };
+
 
 // Session derived from TCP session
 // It is from applied/subject level of the program
@@ -28,6 +34,12 @@ class TicTacClientSession: public TcpClientSession
     ITicTacServer& m_ticTacServer;
     std::string    m_playerName;
 
+    // Game info
+    bool  m_isX;
+    
+    bool                                m_waitingAcceptInitaion = false;
+    std::weak_ptr<TicTacClientSession>  m_otherPlayer;
+    
 public:
     TicTacClientSession( ITicTacServer& ticTacServer, boost::asio::ip::tcp::socket&& socket )
       :
@@ -75,22 +87,80 @@ public:
             
             std::string response = "Ok";
             write( response );
-            read();
+            
+            m_ticTacServer.sendPlayerListToAll();
+        }
+        else if ( command == "Invitation" )
+        {
+            if ( tokens.size() < 2 || m_waitingAcceptInitaion )
+            {
+                LOG_ERR( "TcpClientSession bad request (3): " << request );
+                return;
+            }
+            
+            auto& otherPlayerName = tokens[1];
+            LOG( "otherPlayerName: " << otherPlayerName );
+
+            std::string errorText;
+            
+            m_otherPlayer = m_ticTacServer.sendInvitaion( m_playerName, otherPlayerName, errorText );
+            if ( m_otherPlayer.expired() )
+            {
+                std::string response = "Failed," + errorText;
+                write( response );
+                m_waitingAcceptInitaion = true;
+            }
+        }
+        else if ( command == "AcceptInvitation" )
+        {
+            if ( auto otherPlayer = m_otherPlayer.lock(); otherPlayer )
+            {
+                otherPlayer->m_isX = false;
+                m_isX = true;
+                
+                m_waitingAcceptInitaion = false;
+                otherPlayer->m_waitingAcceptInitaion = false;
+
+                std::string message = "AcceptedFrom," + m_playerName + ",1";
+                otherPlayer->write( message );
+            }
+            else
+            {
+                m_waitingAcceptInitaion = false;
+                std::string response = "PlayerOffLine";
+                write( response );
+            }
+        }
+        else if ( command == "Step" )
+        {
+            auto& isX = tokens[1];
+            
+            if ( (m_isX && isX != "X ") || (!m_isX && isX == "X ") )
+            {
+                std::string response = "Failed, invalid step (X or 0)";
+                write( response );
+                return;
+            }
+            
+            if ( auto otherPlayer = m_otherPlayer.lock(); otherPlayer )
+            {
+                std::string message = "Step," + isX + "," + tokens[1] + "," + tokens[2];
+                otherPlayer->write(message);
+            }
         }
         else if ( command == "Bye" )
         {
             //read();
         }
-        else if ( command == "GetPlayers" )
+        else if ( command == "PlayerStep" )
         {
-            std::string response = m_ticTacServer.getPlayerListResponse( m_playerName );
+        }
+        else
+        {
+            LOG_ERR( "Unnkown message type: " << command );
+        }
+        read();
 
-            write( response );
-            read();
-        }
-        else if ( command == "Turn" )
-        {
-        }
     }
 };
 
@@ -127,18 +197,48 @@ public:
         return true;
     }
     
-    std::string getPlayerListResponse( const std::string requesterName ) override
+    virtual void sendPlayerListToAll() override
+    {
+        auto playerList = getPlayerListResponse();
+        
+        for( auto [clientName,sessionPtr] : m_clientMap )
+        {
+            if ( auto session = sessionPtr.lock(); session )
+            {
+                session->write( playerList );
+            }
+        }
+    }
+    
+    virtual std::string getPlayerListResponse() override
     {
         std::string response = "PlayerList";
         
         for( const auto& [key,session] : m_clientMap )
         {
-            if ( requesterName != key )
-            {
-                response += "," + key;
-            }
+            response += "," + key;
         }
         return response;
+    }
+    
+    virtual std::weak_ptr<TicTacClientSession> sendInvitaion( std::string senderPlayerName, std::string playerName, std::string& outErrorText ) override
+    {
+        auto it = m_clientMap.find(playerName);
+        if ( it != m_clientMap.end() )
+        {
+            outErrorText = "no player with name: " + playerName;
+            return {};
+        }
+
+        if ( auto session = it->second.lock(); session )
+        {
+            std:: string message = "InvitationFrom,"+senderPlayerName;
+            session->write( message );
+            return it->second;
+        }
+
+        outErrorText = "player is off line: " + playerName;
+        return {};
     }
 };
 
