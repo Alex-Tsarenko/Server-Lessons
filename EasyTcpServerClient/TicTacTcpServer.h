@@ -189,7 +189,7 @@ public:
         LOG( "TicTacServer::addClient: " << clientName );
         if ( auto it = m_clientMap.find( clientName ); it != m_clientMap.end() )
         {
-            errorText == "client with same name already exists";
+            errorText = "client with same name already exists";
             return false;
         }
         

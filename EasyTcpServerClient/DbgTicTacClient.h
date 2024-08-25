@@ -2,7 +2,7 @@
 
 #include "TicTacClient.h"
 
-class DbgTicTacClient : public TicTacClient
+class DbgTicTacClient : public tic_tac::TicTacClient
 {
 public:
     DbgTicTacClient( std::string palyerName ) : TicTacClient(palyerName) {}
@@ -20,12 +20,13 @@ protected:
             }
         }
     }
-    void onInvitation( std::string playName ) override
+    bool onInvitation( std::string playName ) override
     {
-        std::string message = "AcceptInvitation";
-        write(message);
-        message = "Step,X,1,1";
-        write(message);
+        return true;
+//        std::string message = "AcceptInvitation";
+//        write(message);
+//        message = "Step,X,1,1";
+//        write(message);
     }
     
     void onAcceptedInvitation( std::string playName, bool isNotRejected ) override

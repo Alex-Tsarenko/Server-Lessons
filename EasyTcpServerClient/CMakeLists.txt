@@ -20,11 +20,15 @@ set(BOOST_LIB_DIR "/usr/local/lib")
 
 add_executable(DbgServerClient
   main.cpp
-  TcpClient.h
-  TicTacClient.h
-  DbgTicTacClient.h
+
   TcpServer.h
+  TcpClient.h
+  
+  TicTacProtocol.h
   TicTacTcpServer.h
+  TicTacClient.h
+
+  DbgTicTacClient.h
 )
 #target_link_libraries(DbgServerClient Qt${QT_VERSION_MAJOR}::Core)
 
