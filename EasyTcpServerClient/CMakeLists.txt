@@ -18,6 +18,8 @@ set(BOOST_LIB_DIR "/usr/local/lib")
 #find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
 #find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core)
 
+add_definitions(-DDEBUG)
+
 add_executable(DbgServerClient
   main.cpp
 

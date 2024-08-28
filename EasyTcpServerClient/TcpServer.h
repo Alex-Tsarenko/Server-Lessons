@@ -26,7 +26,7 @@ public:
     
     void start()
     {
-        write( "Hi" );
+        write( "Hi;" );
         read();
     }
     
@@ -34,7 +34,7 @@ public:
     {
         m_request.clear();
         
-        boost::asio::async_read_until( m_socket, boost::asio::dynamic_buffer(m_request), '\0',
+        boost::asio::async_read_until( m_socket, boost::asio::dynamic_buffer(m_request), ';',
             [self=shared_from_this()] ( auto error, size_t dataSize )
         {
             if ( error )
@@ -45,6 +45,7 @@ public:
             
             LOG( "TcpClientSession read request: " << self->m_request );
             
+            self->m_request.pop_back();
             self->onMessage( self->m_request );
         });
     }

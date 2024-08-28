@@ -29,11 +29,16 @@ protected:
 //        write(message);
     }
     
-    void onAcceptedInvitation( std::string playName, bool isNotRejected ) override
+    bool onAcceptedInvitation( std::string playName, bool isNotRejected ) override
     {
         //todo
     }
 
+    virtual bool onPlayerOfflined( std::string playName ) override
+    {
+        //todo
+    }
+    
     void onPartnerStep( bool isX, int x, int y ) override
     {
         

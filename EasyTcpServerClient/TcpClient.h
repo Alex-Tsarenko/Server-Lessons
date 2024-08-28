@@ -3,7 +3,7 @@
 class IClient
 {
 protected:
-    virtual void onMessageReceived( const std::string& message ) = 0;
+    virtual void onMessageReceived( std::string& message ) = 0;
 };
 
 class TcpClient: protected IClient
@@ -20,12 +20,12 @@ public:
     void write( const std::string& message )
     {
         m_sendMessage.resize( message.size()+1 );
-        std::memcpy( &m_sendMessage[0], message.c_str(), message.size()+1 );
-                    
+        std::memcpy( &m_sendMessage[0], message.c_str(), message.size() );
+        m_sendMessage.back() = ';';
+
         boost::system::error_code ec;
         LOG( "message: " << message );
         boost::asio::write( m_socket, boost::asio::buffer(m_sendMessage), ec);
-        //size_t sendLen = m_socket.send( boost::asio::buffer(m_sendMessage), 0, ec );
         if (ec)
         {
             LOG_ERR( "write error: " << ec.message() );
@@ -45,7 +45,22 @@ public:
             {
                 std::string response;
                 boost::system::error_code ec;
-                boost::asio::read_until( m_socket, boost::asio::dynamic_buffer(response), "\0", ec );
+                boost::asio::read_until( m_socket, boost::asio::dynamic_buffer(response), ";", ec );
+                if (response.back() == '\0')
+                {
+                    response.pop_back();
+                }
+                if (response.back() == ';')
+                {
+                    response.pop_back();
+                }
+
+                std::vector<std::string> messages;
+                boost::split( messages, response, boost::is_any_of(",;") );
+                
+                LOG_ERR( "response: " << response );
+                LOG_ERR( "messages.size(): " << messages.size() );
+
                 if ( ec )
                 {
                     LOG_ERR( "Client error: read_until error: " << this << " " << ec.message() );
