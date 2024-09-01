@@ -227,7 +227,7 @@ public:
     
     virtual std::string getPlayerListResponse() override
     {
-        std::string response = "PlayerList";
+        std::string response = SMT_PLAYER_LIST;
         
         for( const auto& [key,session] : m_clientMap )
         {
@@ -240,7 +240,7 @@ public:
     virtual bool sendInvitaion( std::string senderPlayerName, std::string playerName, std::string& outErrorText ) override
     {
         auto it = m_clientMap.find(playerName);
-        if ( it != m_clientMap.end() )
+        if ( it == m_clientMap.end() )
         {
             outErrorText = "no player with name: " + playerName;
             return false;
@@ -260,7 +260,7 @@ public:
     virtual bool sendInvitaionAccepted( bool isAccepted, std::string senderPlayerName, std::string playerName, std::string& outErrorText ) override
     {
         auto it = m_clientMap.find(playerName);
-        if ( it != m_clientMap.end() )
+        if ( it == m_clientMap.end() )
         {
             outErrorText = "no player with name: " + playerName;
             return false;
@@ -288,7 +288,7 @@ public:
     virtual bool sendStep( std::string playerName, std::string x_0, std::string x, std::string y ) override
     {
         auto it = m_clientMap.find(playerName);
-        if ( it != m_clientMap.end() )
+        if ( it == m_clientMap.end() )
         {
             return false;
         }
@@ -304,7 +304,7 @@ public:
         return false;
     }
     
-    virtual bool sendCloseGame( std::string playerName, std::string otherPlayerName )
+    virtual bool sendCloseGame( std::string playerName, std::string otherPlayerName ) override
     {
         auto it = m_clientMap.find(playerName);
         if ( it != m_clientMap.end() )

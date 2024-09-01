@@ -3,15 +3,19 @@
 class IClient
 {
 protected:
-    virtual void onMessageReceived( std::string& message ) = 0;
+    virtual void onMessageReceived( const std::string& message ) = 0;
+    virtual std::string playerName() const = 0;
 };
 
 class TcpClient: protected IClient
 {
+    std::vector<char>               m_sendMessage;
+
     boost::asio::io_context         m_context;
     boost::asio::ip::tcp::socket    m_socket;
 
-    std::vector<char>               m_sendMessage;
+protected:
+    std::mutex                      m_mutex;
     
 public:
     TcpClient() : m_context(), m_socket(m_context) {}
@@ -19,6 +23,7 @@ public:
     
     void write( const std::string& message )
     {
+        LOG( ">>> sendMessage: (" << playerName() << "): " << message );
         m_sendMessage.resize( message.size()+1 );
         std::memcpy( &m_sendMessage[0], message.c_str(), message.size() );
         m_sendMessage.back() = ';';
@@ -46,20 +51,6 @@ public:
                 std::string response;
                 boost::system::error_code ec;
                 boost::asio::read_until( m_socket, boost::asio::dynamic_buffer(response), ";", ec );
-                if (response.back() == '\0')
-                {
-                    response.pop_back();
-                }
-                if (response.back() == ';')
-                {
-                    response.pop_back();
-                }
-
-                std::vector<std::string> messages;
-                boost::split( messages, response, boost::is_any_of(",;") );
-                
-                LOG_ERR( "response: " << response );
-                LOG_ERR( "messages.size(): " << messages.size() );
 
                 if ( ec )
                 {
@@ -69,10 +60,25 @@ public:
                         return;
                     }
                 }
-                LOG( "Client received response: " << response );
-                onMessageReceived( response );
+
+                LOG( "response: \'" << response << '\'');
+
+                char* ptr = const_cast<char*>( response.c_str() );
+                auto* responseEnd  = response.c_str()+response.size();
+                for( char* end = ptr ; end < responseEnd; end++ )
+                {
+                    if ( *end == ';' )
+                    {
+                        *end = 0;
+                        LOG( "message: " << ptr );
+                        {
+                            std::lock_guard<std::mutex>  lock(m_mutex);
+                            onMessageReceived( std::string(ptr) );
+                        }
+                        ptr = end+1;
+                    }
+                }
             }
-            
         }
         catch( std::runtime_error& exception )
         {

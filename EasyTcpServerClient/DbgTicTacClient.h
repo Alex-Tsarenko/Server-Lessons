@@ -1,6 +1,9 @@
 #pragma once
 
 #include "TicTacClient.h"
+#include "TicTacProtocol.h"
+
+namespace tic_tac {
 
 class DbgTicTacClient : public tic_tac::TicTacClient
 {
@@ -14,26 +17,25 @@ protected:
         {
             if ( playerName != m_playerName && isAvailable )
             {
-                std::string message = "Invitation,"+m_playerName;
-                write(message);
+                std::thread([playerName=playerName,this] { sendInvitaion(playerName); } ).detach();
                 return;
             }
         }
     }
-    bool onInvitation( std::string playName ) override
+    
+    bool onInvitation( std::string playerName ) override
     {
+        std::thread([playerName=playerName,this] { sendStep(playerName, "X","1","1" ); } ).detach();
+        
+        // accept invitation
         return true;
-//        std::string message = "AcceptInvitation";
-//        write(message);
-//        message = "Step,X,1,1";
-//        write(message);
     }
     
-    bool onAcceptedInvitation( std::string playName, bool isNotRejected ) override
+    bool onAcceptedInvitation( std::string playName, bool isAccepted ) override
     {
-        //todo
+        return true;
     }
-
+    
     virtual bool onPlayerOfflined( std::string playName ) override
     {
         //todo
@@ -41,7 +43,8 @@ protected:
     
     void onPartnerStep( bool isX, int x, int y ) override
     {
-        
+        return;
     }
 };
 
+} // namespace tic_tac {

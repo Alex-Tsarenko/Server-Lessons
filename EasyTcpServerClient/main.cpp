@@ -13,13 +13,13 @@ int main()
 
     std::thread( []
     {
-        DbgTicTacClient client( "Player0" );
+        tic_tac::DbgTicTacClient client( "Player0" );
         client.run( "127.0.0.1", "15001" );
     }).detach();
     
     //usleep(1000);
 
-    DbgTicTacClient client( "Player1" );
+    tic_tac::DbgTicTacClient client( "Player1" );
     client.run( "127.0.0.1", "15001" );
     
     sleep(1000);

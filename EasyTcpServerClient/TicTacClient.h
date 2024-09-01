@@ -11,8 +11,19 @@ class ITicTacClient
 {
 protected:
     virtual void onPlayerListChanged() = 0;
+    
+    // returned 'true'  -> if invitation accepted
+    // returned 'false' -> if invitation rejected
     virtual bool onInvitation( std::string playName ) = 0;
-    virtual bool onAcceptedInvitation( std::string playName, bool isNotRejected ) = 0;
+    
+    // if 'isAccepted' and returned 'false' -> 'close game'
+    // if 'isAccepted' and returned 'true' -> 'game started'
+    // if '!isAccepted' and returned 'false' -> client go to state 'cst_waiting_user_choice'
+    // if '!isAccepted' and returned 'true' -> client stays in state 'cst_inviting' (in case 2 or more player were invited by us)
+    virtual bool onAcceptedInvitation( std::string playName, bool isAccepted ) = 0;
+    
+    // returned 'false' -> client go to state 'cst_waiting_user_choice'
+    // returned 'true' -> client stays in current state
     virtual bool onPlayerOfflined( std::string playName ) = 0;
 
     virtual void onPartnerStep( bool isX, int x, int y ) = 0;
@@ -43,8 +54,12 @@ public:
     
 protected:
     
+    std::string playerName() const override { return m_playerName; }
+    
     void sendInvitaion( std::string partnerName)
     {
+        std::lock_guard<std::mutex>  lock(m_mutex);
+        
         m_partnerName = partnerName;
         m_request = (CMT_INVITE) +  "," + partnerName;
         write( m_request );
@@ -52,9 +67,18 @@ protected:
         m_currentState = cst_inviting;
     }
     
-    virtual void onMessageReceived( std::string& message ) override
+    void sendStep( std::string partnerName, std::string x_0, std::string x, std::string y )
     {
-        LOG( "Client::onMessageReceived: " << message );
+        std::lock_guard<std::mutex> lock(m_mutex);
+        
+        m_partnerName = partnerName;
+        m_request = (CMT_STEP) +  "," + partnerName + "," + x_0 + "," + x + "," + y;
+        write( m_request );
+    }
+    
+    virtual void onMessageReceived( const std::string& message ) override
+    {
+        LOG( "> Client::onMessageReceived: (" << m_playerName << "): " << message );
         
         if ( message.empty() )
         {
@@ -62,11 +86,6 @@ protected:
             return;
         }
         
-        if ( message.back() == 0 )
-        {
-            message.pop_back();
-        }
-
         std::vector<std::string> tokens;
         boost::split( tokens, message, boost::is_any_of(",") );
 
@@ -206,7 +225,7 @@ protected:
             m_currentState = cst_gaming;
 
             auto partnerName = tokens[1];
-            if ( onAcceptedInvitation( partnerName, true ) )
+            if ( ! onAcceptedInvitation( partnerName, true ) )
             {
                 m_request = (CMT_CLOSE_GAME) + "," + partnerName;
                 write( m_request );
