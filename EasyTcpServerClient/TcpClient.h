@@ -4,7 +4,7 @@ class IClient
 {
 protected:
     virtual void onMessageReceived( const std::string& message ) = 0;
-    virtual std::string playerName() const = 0;
+    virtual std::string clientName() const = 0;
 };
 
 class TcpClient: protected IClient
@@ -23,17 +23,17 @@ public:
     
     void write( const std::string& message )
     {
-        LOG( ">>> sendMessage: (" << playerName() << "): " << message );
+        LOG( ">>> sendMessage: (" << clientName().c_str() << "): " << message.c_str() );
         m_sendMessage.resize( message.size()+1 );
         std::memcpy( &m_sendMessage[0], message.c_str(), message.size() );
         m_sendMessage.back() = ';';
 
         boost::system::error_code ec;
-        LOG( "message: " << message );
+        LOG( "message: " << message.c_str() );
         boost::asio::write( m_socket, boost::asio::buffer(m_sendMessage), ec);
         if (ec)
         {
-            LOG_ERR( "write error: " << ec.message() );
+            LOG_ERR( "write error: " << ec.message().c_str() );
         }
     }
     
@@ -54,14 +54,14 @@ public:
 
                 if ( ec )
                 {
-                    LOG_ERR( "Client error: read_until error: " << this << " " << ec.message() );
+                    LOG_ERR( "Client error: read_until error: " << this << " " << ec.message().c_str() );
                     if ( ec == boost::asio::error::eof )
                     {
                         return;
                     }
                 }
 
-                LOG( "response: \'" << response << '\'');
+                LOG( "response: \'" << response.c_str() << '\'');
 
                 char* ptr = const_cast<char*>( response.c_str() );
                 auto* responseEnd  = response.c_str()+response.size();

@@ -4,14 +4,18 @@
 
 inline std::mutex gLogMutex;
 
-#define LOG( expr ) \
-{\
-    std::lock_guard<std::mutex> lock(gLogMutex);\
-    std::cout << expr << std::endl; \
-}
+#ifndef LOG
+    #define LOG( expr ) \
+    {\
+        std::lock_guard<std::mutex> lock(gLogMutex);\
+        std::cout << expr << std::endl; \
+    }
+#endif
 
-#define LOG_ERR( expr ) \
-{\
-    std::lock_guard<std::mutex> lock(gLogMutex);\
-    std::cerr << expr << std::endl; \
-}
+#ifndef LOG_ERR
+    #define LOG_ERR( expr ) \
+    {\
+        std::lock_guard<std::mutex> lock(gLogMutex);\
+        std::cerr << expr << std::endl; \
+    }
+#endif

@@ -1,5 +1,11 @@
 #pragma once
 
+#include <boost/asio.hpp>
+#include <boost/algorithm/string.hpp>
+
+#include <map>
+#include <string>
+
 #include "TcpClient.h"
 #include "TicTacProtocol.h"
 #include "Logs.h"
@@ -54,7 +60,7 @@ public:
     
 protected:
     
-    std::string playerName() const override { return m_playerName; }
+    std::string clientName() const override { return m_playerName; }
     
     void sendInvitaion( std::string partnerName)
     {
@@ -78,11 +84,11 @@ protected:
     
     virtual void onMessageReceived( const std::string& message ) override
     {
-        LOG( "> Client::onMessageReceived: (" << m_playerName << "): " << message );
+        LOG( "> Client::onMessageReceived: (" << m_playerName.c_str() << "): " << message.c_str() );
         
         if ( message.empty() )
         {
-            LOG_ERR( "Client::onMessageReceived empty response: '" << message << "'" );
+            LOG_ERR( "Client::onMessageReceived empty response: '" << message.c_str() << "'" );
             return;
         }
         
@@ -95,7 +101,7 @@ protected:
         {
             if ( m_currentState != cst_initial )
             {
-                LOG_ERR( "invalid server greeting: " << message );
+                LOG_ERR( "invalid server greeting: " << message.c_str() );
                 return;
             }
 
@@ -108,7 +114,7 @@ protected:
         {
             if ( m_currentState != cst_handshaking )
             {
-                LOG_ERR( "invalid server response: " << message );
+                LOG_ERR( "invalid server response: " << message.c_str() );
                 return;
             }
 
@@ -119,7 +125,7 @@ protected:
         {
             if ( m_currentState == cst_initial || m_currentState == cst_handshaking )
             {
-                LOG_ERR( "protocol error: (1)" << message );
+                LOG_ERR( "protocol error: (1)" << message.c_str() );
                 return;
             }
 
@@ -128,7 +134,7 @@ protected:
             {
                 auto playerName = tokens[i];
                 auto isAvailable = ! tokens[i+1].empty();
-                LOG( "PlayerList[" << i-1 << "]: " << playerName << " " << isAvailable );
+                LOG( "PlayerList[" << i-1 << "]: " << playerName.c_str() << " " << isAvailable );
                 if ( playerName == m_playerName )
                 {
                     continue;
@@ -144,13 +150,13 @@ protected:
         {
             if ( m_currentState == cst_initial || m_currentState == cst_handshaking )
             {
-                LOG_ERR( "protocol error: (2)" << message );
+                LOG_ERR( "protocol error: (2)" << message.c_str() );
                 return;
             }
             
             if ( tokens.size() < 2 )
             {
-                LOG_ERR( "protocol error: tokens.size() " << message );
+                LOG_ERR( "protocol error: tokens.size() " << message.c_str() );
                 return;
             }
 
@@ -173,7 +179,7 @@ protected:
         {
             if ( tokens.size() < 2 )
             {
-                LOG_ERR( "protocol error: tokens.size() " << message );
+                LOG_ERR( "protocol error: tokens.size() " << message.c_str() );
                 return;
             }
 
@@ -188,13 +194,13 @@ protected:
         {
             if ( m_currentState != cst_inviting )
             {
-                LOG_ERR( "protocol error: (3)" << message );
+                LOG_ERR( "protocol error: (3)" << message.c_str() );
                 return;
             }
 
             if ( tokens.size() < 2 )
             {
-                LOG_ERR( "protocol error: tokens.size() " << message );
+                LOG_ERR( "protocol error: tokens.size() " << message.c_str() );
                 return;
             }
 
@@ -209,11 +215,11 @@ protected:
         {
             if ( m_currentState != cst_inviting )
             {
-                LOG_ERR( "protocol error: (4)" << message );
+                LOG_ERR( "protocol error: (4)" << message.c_str() );
 
                 if ( tokens.size() < 2 )
                 {
-                    LOG_ERR( "protocol error: tokens.size() " << message );
+                    LOG_ERR( "protocol error: tokens.size() " << message.c_str() );
                     return;
                 }
 
@@ -238,13 +244,13 @@ protected:
         {
             if ( tokens.size() < 5 )
             {
-                LOG_ERR( "protocol error: tokens.size() " << message );
+                LOG_ERR( "protocol error: tokens.size() " << message.c_str() );
                 return;
             }
 
             if ( m_currentState != cst_gaming )
             {
-                LOG_ERR( "protocol error: (5)" << message );
+                LOG_ERR( "protocol error: (5)" << message.c_str() );
 
                 auto playerName = tokens[1];
                 m_request = (CMT_CLOSE_GAME) + "," + playerName;
@@ -264,7 +270,7 @@ protected:
         }
         else
         {
-            LOG( "!!! unknown message type: " << messageType );
+            LOG( "!!! unknown message type: " << messageType.c_str() );
 #ifdef DEBUG
             assert(0);
 #endif

@@ -77,10 +77,16 @@ public:
         m_context(),
         m_socket(m_context)
     {
-        boost::asio::ip::tcp::resolver resolver(m_context);
-        m_endpoint = *resolver.resolve( addr, port ).begin();
-        
-        m_acceptor = boost::asio::ip::tcp::acceptor( m_context, m_endpoint );
+        try
+        {
+            boost::asio::ip::tcp::resolver resolver(m_context);
+            m_endpoint = *resolver.resolve( addr, port ).begin();
+
+            m_acceptor = boost::asio::ip::tcp::acceptor( m_context, m_endpoint );
+        }
+        catch( std::runtime_error& e ) {
+            LOG("TcpServer exception: " << e.what() )
+        }
     }
     
     void run()

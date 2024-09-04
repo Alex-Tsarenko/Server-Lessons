@@ -38,7 +38,7 @@ protected:
     
     virtual bool onPlayerOfflined( std::string playName ) override
     {
-        //todo
+        return false;
     }
     
     void onPartnerStep( bool isX, int x, int y ) override
