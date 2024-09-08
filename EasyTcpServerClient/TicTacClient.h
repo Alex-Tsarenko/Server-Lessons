@@ -62,17 +62,28 @@ protected:
     
     std::string clientName() const override { return m_playerName; }
     
-    void sendInvitaion( std::string partnerName)
+    void sendInvitaion( std::string partnerName )
     {
         std::lock_guard<std::mutex>  lock(m_mutex);
-        
+
         m_partnerName = partnerName;
         m_request = (CMT_INVITE) +  "," + partnerName;
         write( m_request );
-        
+
         m_currentState = cst_inviting;
     }
-    
+
+    void sendCloseGame( std::string partnerName )
+    {
+        std::lock_guard<std::mutex>  lock(m_mutex);
+
+        m_partnerName = partnerName;
+        m_request = (CMT_CLOSE_GAME) +  "," + partnerName;
+        write( m_request );
+
+        m_currentState = cst_waiting_user_choice;
+    }
+
     void sendStep( std::string partnerName, std::string x_0, std::string x, std::string y )
     {
         std::lock_guard<std::mutex> lock(m_mutex);

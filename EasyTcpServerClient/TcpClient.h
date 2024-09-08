@@ -29,13 +29,14 @@ public:
         m_sendMessage.back() = ';';
 
         boost::system::error_code ec;
-        LOG( "message: " << message.c_str() );
         boost::asio::write( m_socket, boost::asio::buffer(m_sendMessage), ec);
         if (ec)
         {
             LOG_ERR( "write error: " << ec.message().c_str() );
         }
     }
+
+    void closeSocket() { m_socket.close(); }
     
     void run( std::string address, std::string port )
     {
@@ -55,7 +56,7 @@ public:
                 if ( ec )
                 {
                     LOG_ERR( "Client error: read_until error: " << this << " " << ec.message().c_str() );
-                    if ( ec == boost::asio::error::eof )
+                    if ( ec == boost::asio::error::eof || ec == boost::asio::error::bad_descriptor )
                     {
                         return;
                     }

@@ -86,6 +86,8 @@ public:
         }
         catch( std::runtime_error& e ) {
             LOG("TcpServer exception: " << e.what() )
+            LOG("??? Port already in use ???" )
+            exit(0);
         }
     }
     
@@ -93,6 +95,11 @@ public:
     {
         asyncAccept();
         m_context.run();
+    }
+
+    void shutdown()
+    {
+        m_context.stop();
     }
     
     void asyncAccept()
