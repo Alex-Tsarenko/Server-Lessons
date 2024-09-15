@@ -13,7 +13,7 @@ public:
 protected:
     void onPlayerListChanged() override
     {
-        for( auto [playerName,isAvailable] : m_availablePlayList )
+        for( auto [playerName,isAvailable] : m_availablePlayerList )
         {
             if ( playerName != m_playerName && isAvailable )
             {
@@ -23,27 +23,28 @@ protected:
         }
     }
     
-    bool onInvitation( std::string playerName ) override
+    void onInvitation( std::string partnerName ) override
     {
-        std::thread([playerName=playerName,this] { sendStep(playerName, "X","1","1" ); } ).detach();
-        
-        // accept invitation
-        return true;
+        sleep(1);
+        sendInvitaionResponse( partnerName, true );
+        usleep(1000);
+        sendStep(partnerName, "X","1","1" );
     }
     
-    bool onAcceptedInvitation( std::string playName, bool isAccepted ) override
+    void onAcceptedInvitation( std::string playName, bool isAccepted ) override
     {
-        return true;
     }
     
-    virtual bool onPlayerOfflined( std::string playName ) override
+    virtual void onPlayerOfflined( std::string playName ) override
     {
-        return false;
     }
     
     void onPartnerStep( bool isX, int x, int y ) override
     {
-        return;
+    }
+
+    void onRegistered() override
+    {
     }
 };
 

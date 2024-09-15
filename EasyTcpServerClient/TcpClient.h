@@ -73,7 +73,6 @@ public:
                         *end = 0;
                         LOG( "message: " << ptr );
                         {
-                            std::lock_guard<std::mutex>  lock(m_mutex);
                             onMessageReceived( std::string(ptr) );
                         }
                         ptr = end+1;
