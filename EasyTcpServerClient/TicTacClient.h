@@ -34,7 +34,7 @@ protected:
     // returned 'true' -> client stays in current state
     virtual void onPlayerOfflined( std::string playName ) = 0;
 
-    virtual void onPartnerStep( bool isX, int x, int y ) = 0;
+    virtual void onPartnerStep( std::string partnerName, bool isX, int x, int y ) = 0;
 };
 
 class TicTacClient: public TcpClient, ITicTacClient
@@ -146,14 +146,14 @@ protected:
             for( size_t i=1; i<tokens.size(); i+=2 )
             {
                 auto playerName = tokens[i];
-                auto isAvailable = ! tokens[i+1].empty();
-                LOG( "PlayerList[" << i-1 << "]: " << playerName.c_str() << " " << isAvailable );
+                auto isNotBuzy = tokens[i+1].empty();
+                LOG( "PlayerList[" << i-1 << "]: " << playerName.c_str() << " " << isNotBuzy );
                 if ( playerName == m_playerName )
                 {
                     continue;
                 }
                 
-                m_availablePlayerList[playerName] = isAvailable;
+                m_availablePlayerList[playerName] = isNotBuzy;
             }
 
             onPlayerListChanged();
@@ -210,17 +210,18 @@ protected:
         }
         else if ( messageType == SMT_ON_STEP )
         {
+            LOG( "SMT_ON_STEP received" );
             if ( tokens.size() < 5 )
             {
                 LOG_ERR( "protocol error: tokens.size() " << message.c_str() );
                 return;
             }
 
-            auto partnerName = tokens[1];
+            auto myName = tokens[1];
             auto x_or_0 = tokens[2];
             int x = std::stoi(tokens[3]);
             int y = std::stoi(tokens[4]);
-            onPartnerStep( x_or_0 != "0", x, y );
+            onPartnerStep( m_partnerName, x_or_0 != "0", x, y );
         }
         else if ( messageType == SMT_GAME_IS_OVER )
         {

@@ -62,7 +62,7 @@ public:
                     }
                 }
 
-                LOG( "response: \'" << response.c_str() << '\'');
+                LOG( "response: (" << clientName().c_str() << ") \'" << response.c_str() << '\'');
 
                 char* ptr = const_cast<char*>( response.c_str() );
                 auto* responseEnd  = response.c_str()+response.size();
@@ -71,7 +71,7 @@ public:
                     if ( *end == ';' )
                     {
                         *end = 0;
-                        LOG( "message: " << ptr );
+                        LOG( "message: (" << clientName().c_str() << ")" << ptr );
                         {
                             onMessageReceived( std::string(ptr) );
                         }

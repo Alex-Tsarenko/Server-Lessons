@@ -25,7 +25,7 @@ protected:
     
     void onInvitation( std::string partnerName ) override
     {
-        sleep(1);
+        //sleep(1);
         sendInvitaionResponse( partnerName, true );
         usleep(1000);
         sendStep(partnerName, "X","1","1" );
@@ -39,8 +39,10 @@ protected:
     {
     }
     
-    void onPartnerStep( bool isX, int x, int y ) override
+    void onPartnerStep( std::string partnerName, bool isX, int x, int y ) override
     {
+        sleep(2);
+        sendStep(partnerName, "X","0","0" );
     }
 
     void onRegistered() override

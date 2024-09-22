@@ -231,7 +231,7 @@ public:
         
         for( const auto& [key,session] : m_clientMap )
         {
-            response += "," + key;
+            response += "," + key + ","; // + isBuzy;
         }
         response += ";";
         return response;
@@ -285,9 +285,9 @@ public:
         return false;
     }
 
-    virtual bool sendStep( std::string playerName, std::string x_0, std::string x, std::string y ) override
+    virtual bool sendStep( std::string rcvPlayerName, std::string x_0, std::string x, std::string y ) override
     {
-        auto it = m_clientMap.find(playerName);
+        auto it = m_clientMap.find(rcvPlayerName);
         if ( it == m_clientMap.end() )
         {
             return false;
@@ -296,7 +296,7 @@ public:
         if ( auto session = it->second.lock(); session )
         {
             std::string message;
-            message = (SMT_ON_STEP) + "," + playerName + "," + x_0 + "," + x + "," + y + ";";
+            message = (SMT_ON_STEP) + "," + rcvPlayerName + "," + x_0 + "," + x + "," + y + ";";
             session->write( message );
             return true;
         }
