@@ -18,6 +18,7 @@ public:
     using ClientName = const std::string;
     
     virtual bool addClient( ClientName&, const std::weak_ptr<TicTacClientSession>&, std::string& errorText ) = 0;
+    virtual void removeClient( const TicTacClientSession& ) = 0;
     virtual std::string getPlayerListResponse() = 0;
     
     virtual void sendPlayerListToAll() = 0;
@@ -53,6 +54,13 @@ public:
     {
         LOG( "~TicTacClientSession: " << this );
     }
+    
+    void connectionLost( boost::system::error_code error ) override
+    {
+        m_ticTacServer.removeClient( *this );
+    }
+
+    std::string playerName() const { return m_playerName; }
     
     void onMessage( const std::string& request ) override
     {
@@ -212,6 +220,11 @@ public:
         return true;
     }
     
+    virtual void removeClient( const TicTacClientSession& session )
+    {
+        m_clientMap.erase( session.playerName() );
+    }
+    
     virtual void sendPlayerListToAll() override
     {
         auto playerList = getPlayerListResponse();
@@ -290,6 +303,7 @@ public:
         auto it = m_clientMap.find(rcvPlayerName);
         if ( it == m_clientMap.end() )
         {
+            LOG( "No client with name: " << rcvPlayerName );
             return false;
         }
         

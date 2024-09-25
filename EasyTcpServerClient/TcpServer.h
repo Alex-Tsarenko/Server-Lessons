@@ -30,6 +30,8 @@ public:
         read();
     }
     
+    virtual void connectionLost( boost::system::error_code error ) {}
+    
     void read()
     {
         m_request.clear();
@@ -40,6 +42,7 @@ public:
             if ( error )
             {
                 LOG_ERR( "TcpClientSession read error: " << error.message() );
+                self->connectionLost( error );
                 return;
             }
             
@@ -112,6 +115,9 @@ public:
             }
             else
             {
+                boost::asio::socket_base::keep_alive option(true);
+                m_socket.set_option(option);
+                
                 auto session = createSession( std::move(m_socket) );
                 session->start();
                 asyncAccept();
