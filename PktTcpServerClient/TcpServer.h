@@ -8,23 +8,25 @@
 
 #include "Logs.h"
 
-class TcpClientSession: public std::enable_shared_from_this<TcpClientSession>
+template<class AppliedSessionT>
+class TcpClientSession: public std::enable_shared_from_this<TcpClientSession<AppliedSessionT>>, public AppliedSessionT
 {
 protected:
     boost::asio::ip::tcp::socket m_socket;
 
-    uint16_t                    m_dataLength;
-    std::vector<char>           m_packetData;
+    uint16_t                     m_dataLength;
+    std::vector<uint8_t>         m_packetData;
     
 public:
-    TcpClientSession( boost::asio::ip::tcp::socket&& socket ) : m_socket( std::move(socket) )
+    TcpClientSession( boost::asio::ip::tcp::socket&& socket )
+        : m_socket( std::move(socket) )
     {
     }
 
-    void write( const char* response, size_t dataSize )
+    void write( const uint8_t* response, size_t dataSize )
     {
         m_socket.async_send( boost::asio::buffer( response, dataSize ),
-            [self=shared_from_this(),response] ( auto error, auto sentSize )
+            [self=this->shared_from_this(),response] ( auto error, auto sentSize )
         {
             LOG_ERR( "TcpClientSession sentSize: " << sentSize );
             delete response;
@@ -39,15 +41,14 @@ public:
     {
         //m_packetData.clear();
         
-        boost::asio::async_read( m_socket, boost::asio::buffer(&m_dataLength, sizeof(m_dataLength)), [self=shared_from_this()] ( auto error, auto bytes_transferred )
+        boost::asio::async_read( m_socket, boost::asio::buffer(&m_dataLength, sizeof(m_dataLength)), [self=this->shared_from_this()] ( auto error, auto bytes_transferred )
         {
-            self->onReadPacketHeader( error, bytes_transferred );
+            self->doReadPacketHeader( error, bytes_transferred );
         });
     }
     
-    void onReadPacketHeader( boost::system::error_code error, size_t bytes_transferred )
+    void doReadPacketHeader( boost::system::error_code error, size_t bytes_transferred )
     {
-        readPacketData( error, bytes_transferred );
         if ( error )
         {
             LOG_ERR( "TcpClientSession read error: " << error.message() );
@@ -64,8 +65,8 @@ public:
         LOG( "received: " << m_dataLength );
 
         m_packetData.resize( m_dataLength );
-        boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength),
-                                [self=shared_from_this()] ( auto error, auto bytes_transferred )
+        boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength-2 ),
+                                [self=this->shared_from_this()] ( auto error, auto bytes_transferred )
         {
             self->readPacketData( error, bytes_transferred );
         });
@@ -79,26 +80,23 @@ public:
             //connectionLost( error );
             return;
         }
-        if ( bytes_transferred != m_dataLength )
+        if ( bytes_transferred != m_dataLength-2 )
         {
             LOG_ERR( "TcpClientSession read error (bytes_transferred): " << bytes_transferred << " vs "  << m_dataLength );
             //connectionLost( error );
             return;
         }
         
-        LOG( "received: " << std::string( m_packetData.data(), m_packetData.size() ) );
+        //LOG( "received: " << std::string( m_packetData.data(), m_packetData.size() ) );
         
-        char* response = new char[14];
-        response[0] = 12;
-        response[1] = 0;
-        memcpy( response+2, "ba9876543210", 12 );
-        write( response, 14 );
-        // onPacketReceived
-        
+        AppliedSessionT::onPacketReceived( m_packetData );
+
+        // Read next packet
         readPacketHeader();
     }
 };
 
+template<class AppliedServerT,class AppliedSessionT>
 class TcpServer
 {
     boost::asio::io_context                         m_context;
@@ -158,9 +156,9 @@ public:
         });
     }
     
-    virtual std::shared_ptr<TcpClientSession> createSession( boost::asio::ip::tcp::socket&& )
+    std::shared_ptr<TcpClientSession<AppliedSessionT>> createSession( boost::asio::ip::tcp::socket&& socket )
     {
-        return std::make_shared<TcpClientSession>( std::move(m_socket) );
+        return std::make_shared<TcpClientSession<AppliedSessionT>>( std::move(socket) );
     }
 };
 

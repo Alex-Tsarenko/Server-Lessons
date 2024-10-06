@@ -1,15 +1,26 @@
 #include "TcpServer.h"
+#include "TicTacServer.h"
 #include "TicTacClient.h"
-#include "TicTacPackets.h"
+#include "TicTacClientPackets.h"
+#include "TicTacServerPackets.h"
+#include "TicTacPacketUtils.h"
 
 // lvalue = rvalue (movable)
 // rvalue = std::move(lvalue)
 
 int main()
 {
+//    tic_tac::ClientPacketStep packet0("Name",false, 1,2);
+//    std::array<uint8_t,200> buffer;
+//    writePacket( packet0, buffer.data(), buffer.size() );
+//    
+//    tic_tac::ClientPacketStep packet2 = readPacket<tic_tac::ClientPacketStep>( buffer.data(), buffer.size() );
+//    
+//    sleep(0);
+
     std::thread( []
     {
-        TcpServer server("0.0.0.0", "15001" );
+        TcpServer<TicTacServer,TicTacSession> server("0.0.0.0", "15001" );
         server.run();
     }).detach();
     
@@ -23,11 +34,11 @@ int main()
     
     sleep(1);
     
-    char message[] = "001234567890";
-    message[0] = 10;
-    message[1] = 0;
-    client->write( message, sizeof(message) );
-    
+    tic_tac::ClientPacketHi packet("Name");
+    size_t tcpPacketSize;
+    uint8_t* message = createOutgoingMessage( packet, tcpPacketSize );
+    client->write( message, tcpPacketSize );
+
     sleep(100);
 
     return 0;

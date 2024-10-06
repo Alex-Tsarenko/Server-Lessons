@@ -15,7 +15,7 @@ class TcpClient : public std::enable_shared_from_this<TcpClient<T>>, public T
     tcp::socket   m_socket;
 
     uint16_t            m_dataLength;
-    std::vector<char>   m_packetData;
+    std::vector<uint8_t>   m_packetData;
 
 public:
     TcpClient() : T(),
@@ -41,13 +41,15 @@ public:
         }
     }
 
-    void write( const char* message, size_t size ) {
+    void write( const uint8_t* message, size_t size ) {
         boost::asio::async_write(m_socket, boost::asio::buffer(message,size),
-            [self = this->shared_from_this()](const boost::system::error_code& ec, std::size_t length) {
-                if (!ec) {
-                    std::cout << "Sent message: " << length << " bytes\n";
-                }
-            });
+            [message,self = this->shared_from_this()](const boost::system::error_code& ec, std::size_t length)
+        {
+            delete [] message;
+            if (!ec) {
+                std::cout << "Sent message: " << length << " bytes\n";
+            }
+        });
     }
 
 private:
@@ -82,7 +84,7 @@ private:
     
     void onReadPacketHeader( boost::system::error_code error, size_t bytes_transferred )
     {
-        readPacketData( error, bytes_transferred );
+        //readPacketData( error, bytes_transferred );
         if ( error )
         {
             LOG_ERR( "TcpClient read error: " << error.message() );
@@ -129,9 +131,7 @@ private:
             return;
         }
         
-        LOG( "TcpClient received: " << std::string( m_packetData.data(), m_packetData.size() ) );
-        
-//        char* response = new char[14];
+//        uint8_t* response = new uint8_t[14];
 //        response[0] = 12;
 //        response[0] = 0;
 //        memcpy( response+2, "ba9876543210", 12 );

@@ -26,7 +26,10 @@ add_executable(DbgServerClient
   TcpServer.h
   TcpClient.h
   
-  TicTacPackets.h
+  TicTacClientPackets.h
+  TicTacServerPackets.h
+  TicTacPacketUtils.h
+
   TicTacServer.h
   TicTacClient.h
 
