@@ -11,13 +11,16 @@
 #include "TicTacPacketUtils.h"
 #include "Logs.h"
 
-class TicTacSession/*: public std::enable_shared_from_this<TicTacSession>*/
+namespace tic_tac {
+
+
+class Session/*: public std::enable_shared_from_this<TicTacSession>*/
 {
 public:
-    TicTacSession()
+    Session()
     {
     }
-
+    
     void onPacketReceived( const std::vector<uint8_t>& buffer )
     {
         tic_tac::ClientPacketType packetType = static_cast<tic_tac::ClientPacketType>( buffer[0] | (buffer[1] << 8) );
@@ -37,9 +40,23 @@ public:
     }
 };
 
-class TicTacServer
+class Server
 {
+    std::vector<tic_tac::PlayerStatus> m_playerList;
+    
 public:
-    TicTacServer() {}
+    Server() {}
+    
+    void onConnect( std::string playerName )
+    {
+        
+        
+    }
+    
+    void onDisconnect( std::string playerName )
+    {
+        
+    }
 };
 
+}

@@ -14,7 +14,7 @@ class TcpClient : public std::enable_shared_from_this<TcpClient<T>>, public T
     tcp::resolver m_resolver;
     tcp::socket   m_socket;
 
-    uint16_t            m_dataLength;
+    uint16_t               m_dataLength;
     std::vector<uint8_t>   m_packetData;
 
 public:
@@ -23,17 +23,19 @@ public:
     {
     }
 
-    void run(  const std::string& host, const std::string& port )
+    template<class ...Args>
+    void run(  const std::string& host, const std::string& port, Args&... initParameters )
     {
+        this->initClient( initParameters... );
+        
         tcp::resolver::query query(host, port);
         m_resolver.async_resolve(query,
             [self = this->shared_from_this()](const boost::system::error_code& ec, tcp::resolver::iterator endpoint_iterator) {
                 self->onResolve(ec, endpoint_iterator);
             });
 
-        try {
-//            boost::asio::io_service io_service;
-//            auto client = std::make_shared<TcpClient>( io_service, addr, port );
+        try
+        {
             m_context.run();
         }
         catch (std::exception& e) {
@@ -41,6 +43,11 @@ public:
         }
     }
 
+    virtual void doWrite( const uint8_t* message, size_t size ) override
+    {
+        write( message, size );
+    }
+    
     void write( const uint8_t* message, size_t size ) {
         boost::asio::async_write(m_socket, boost::asio::buffer(message,size),
             [message,self = this->shared_from_this()](const boost::system::error_code& ec, std::size_t length)

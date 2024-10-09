@@ -3,6 +3,8 @@
 #include <iostream>
 #include <vector>
 
+namespace tic_tac {
+
 class PacketReader
 {
     const uint8_t* m_bufferPtr;
@@ -21,7 +23,7 @@ public:
     }
     
     void operator()() {}
-
+    
 private:
     void read( bool& outValue )
     {
@@ -47,24 +49,45 @@ private:
     
     void read( std::string& outString )
     {
-        uint16_t stringLenght;
-        read( stringLenght );
+        uint16_t stringLength;
+        read( stringLength );
         
-        if ( m_bufferPtr + stringLenght > m_bufferEnd )
+        if ( m_bufferPtr + stringLength > m_bufferEnd )
         {
-            throw std::runtime_error("Buffer length too small (std::string); string length: " + std::to_string(stringLenght) );
+            throw std::runtime_error("Buffer length too small (std::string); string length: " + std::to_string(stringLength) );
         }
         
-        if ( stringLenght == 0 )
+        if ( stringLength == 0 )
         {
             assert( outString.empty() );
         }
         else
         {
-            outString.resize( stringLenght );
-            std::memcpy( const_cast<char*>(outString.c_str()), m_bufferPtr, stringLenght );
-            m_bufferPtr += stringLenght;
+            outString.resize( stringLength );
+            std::memcpy( const_cast<char*>(outString.c_str()), m_bufferPtr, stringLength );
+            m_bufferPtr += stringLength;
         }
+    }
+    
+    template<typename T>
+    void read( std::vector<T>& outVector )
+    {
+        uint16_t vectorLength;
+        read( vectorLength );
+        
+        outVector.reserve( vectorLength );
+        
+        for( int i=0; i<vectorLength; i++ )
+        {
+            outVector.emplace_back(T{});
+            read( outVector.back() );
+        }
+    }
+    
+    void read( PlayerStatus& playerStatus )
+    {
+        read( playerStatus.m_playerName );
+        read( reinterpret_cast<uint16_t&>(playerStatus.m_status) );
     }
 };
 
@@ -75,11 +98,11 @@ class PacketWriter
     
 public:
     PacketWriter( uint8_t*     bufferPtr,
-                  size_t    tcpPacketSize,
-                  uint16_t  packetType )
-      :
-        m_bufferPtr( bufferPtr ),
-        m_bufferEnd( bufferPtr+tcpPacketSize )
+                 size_t    tcpPacketSize,
+                 uint16_t  packetType )
+    :
+    m_bufferPtr( bufferPtr ),
+    m_bufferEnd( bufferPtr+tcpPacketSize )
     {
 #ifdef DEBUG
         assert( tcpPacketSize <= 0xFFFF );
@@ -97,7 +120,7 @@ public:
         write( first );
         (*this)( tail... );
     }
-
+    
     void operator()() {}
     
 private:
@@ -131,6 +154,24 @@ private:
         std::memcpy( m_bufferPtr, string.c_str(), string.size() );
         m_bufferPtr += string.size();
     }
+    
+    template<typename T>
+    void write( const std::vector<T>& theVector )
+    {
+        write( static_cast<uint16_t>(theVector.size()) );
+        
+        for( const auto& element :  theVector )
+        {
+            read( element );
+        }
+    }
+    
+    void write( const PlayerStatus& playerStatus )
+    {
+        write( playerStatus.m_playerName );
+        write( static_cast<uint16_t>(playerStatus.m_status) );
+    }
+    
 };
 
 class PacketSize
@@ -139,26 +180,44 @@ class PacketSize
     
 public:
     PacketSize() {}
-
+    
     size_t size() { return m_size; };
-
+    
     template<typename First, typename ...Args>
     void operator()( First& first, Args... tail )
     {
         size( first );
         (*this)( tail... );
     }
-
+    
     void operator()() {}
     
 private:
     void size( bool ) { m_size++; }
     void size( uint16_t ) { m_size+=2; }
-
+    
     void size( const std::string& string )
     {
         m_size += (string.size() + 2);
     }
+    
+    template<typename T>
+    void size( const std::vector<T>& theVector )
+    {
+        m_size += 2;
+        
+        for( const auto& element :  theVector )
+        {
+            size( element );
+        }
+    }
+    
+    void size( const PlayerStatus& playerStatus )
+    {
+        size( playerStatus.m_playerName );
+        size( static_cast<uint16_t>(playerStatus.m_status) );
+    }
+    
 };
 
 template<class PacketT>
@@ -186,7 +245,9 @@ uint8_t* createOutgoingMessage( PacketT& packet, size_t& outRcpPacketSize )
     
     uint8_t* buffer = new uint8_t[outRcpPacketSize];
     PacketWriter writer( buffer, outRcpPacketSize, packet.packetType() );
-    packet.fields( writer ); 
+    packet.fields( writer );
     
     return buffer;
+}
+
 }
