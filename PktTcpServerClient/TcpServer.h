@@ -8,8 +8,12 @@
 
 #include "Logs.h"
 
-template<class AppliedSessionT>
-class TcpClientSession: public std::enable_shared_from_this<TcpClientSession<AppliedSessionT>>, public AppliedSessionT
+#pragma once
+
+template<class AppliedServerT,class AppliedSessionT>
+class TcpClientSession:
+    public std::enable_shared_from_this< TcpClientSession< AppliedServerT, AppliedSessionT >>,
+    public AppliedSessionT
 {
 protected:
     boost::asio::ip::tcp::socket m_socket;
@@ -18,17 +22,20 @@ protected:
     std::vector<uint8_t>         m_packetData;
     
 public:
-    TcpClientSession( boost::asio::ip::tcp::socket&& socket )
-        : m_socket( std::move(socket) )
+    TcpClientSession( boost::asio::ip::tcp::socket&& socket, AppliedServerT& server )
+     :  AppliedSessionT(server),
+        m_socket( std::move(socket) )
     {
     }
 
     void write( const uint8_t* response, size_t dataSize )
     {
+        LOG( "TcpClientSession write: " << dataSize );
+        
         m_socket.async_send( boost::asio::buffer( response, dataSize ),
             [self=this->shared_from_this(),response] ( auto error, auto sentSize )
         {
-            LOG_ERR( "TcpClientSession sentSize: " << sentSize );
+            LOG( "TcpClientSession sentSize: " << sentSize );
             delete response;
             if (error)
             {
@@ -97,7 +104,7 @@ public:
 };
 
 template<class AppliedServerT,class AppliedSessionT>
-class TcpServer
+class TcpServer: public AppliedServerT
 {
     boost::asio::io_context                         m_context;
     boost::asio::ip::tcp::endpoint                  m_endpoint;
@@ -156,9 +163,9 @@ public:
         });
     }
     
-    std::shared_ptr<TcpClientSession<AppliedSessionT>> createSession( boost::asio::ip::tcp::socket&& socket )
+    std::shared_ptr<TcpClientSession<AppliedServerT,AppliedSessionT>> createSession( boost::asio::ip::tcp::socket&& socket )
     {
-        return std::make_shared<TcpClientSession<AppliedSessionT>>( std::move(socket) );
+        return std::make_shared< TcpClientSession< AppliedServerT, AppliedSessionT >>( std::move(socket), (AppliedServerT&)*this );
     }
 };
 

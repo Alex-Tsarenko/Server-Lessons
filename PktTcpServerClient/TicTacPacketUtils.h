@@ -24,7 +24,6 @@ public:
     
     void operator()() {}
     
-private:
     void read( bool& outValue )
     {
         if ( m_bufferPtr + 1 > m_bufferEnd )
@@ -84,10 +83,10 @@ private:
         }
     }
     
-    void read( PlayerStatus& playerStatus )
+    template<typename T>
+    void read( T& tObject )
     {
-        read( playerStatus.m_playerName );
-        read( reinterpret_cast<uint16_t&>(playerStatus.m_status) );
+        tObject.fields( *this );
     }
 };
 
@@ -97,21 +96,15 @@ class PacketWriter
     uint8_t* m_bufferEnd;
     
 public:
-    PacketWriter( uint8_t*     bufferPtr,
-                 size_t    tcpPacketSize,
-                 uint16_t  packetType )
-    :
-    m_bufferPtr( bufferPtr ),
-    m_bufferEnd( bufferPtr+tcpPacketSize )
+    PacketWriter( uint8_t*  bufferPtr,
+                 size_t     tcpPacketSize )
+      :
+        m_bufferPtr( bufferPtr ),
+        m_bufferEnd( bufferPtr+tcpPacketSize )
     {
 #ifdef DEBUG
         assert( tcpPacketSize <= 0xFFFF );
 #endif
-        // write TCP packet size
-        write( static_cast<uint16_t>( tcpPacketSize ) );
-        
-        // write applied packet typee
-        write( packetType );
     }
     
     template<typename First, typename ...Args>
@@ -123,7 +116,6 @@ public:
     
     void operator()() {}
     
-private:
     void write( bool value )
     {
 #ifdef DEBUG
@@ -162,16 +154,15 @@ private:
         
         for( const auto& element :  theVector )
         {
-            read( element );
+            write( element );
         }
     }
     
-    void write( const PlayerStatus& playerStatus )
+    template<typename T>
+    void write( const T& tObject )
     {
-        write( playerStatus.m_playerName );
-        write( static_cast<uint16_t>(playerStatus.m_status) );
+        tObject.fields( *this );
     }
-    
 };
 
 class PacketSize
@@ -186,65 +177,63 @@ public:
     template<typename First, typename ...Args>
     void operator()( First& first, Args... tail )
     {
-        size( first );
+        add_size( first );
         (*this)( tail... );
     }
     
     void operator()() {}
     
-private:
-    void size( bool ) { m_size++; }
-    void size( uint16_t ) { m_size+=2; }
+    void add_size( bool ) { m_size++; }
+    void add_size( uint16_t ) { m_size+=2; }
     
-    void size( const std::string& string )
+    void add_size( const std::string& string )
     {
         m_size += (string.size() + 2);
     }
     
     template<typename T>
-    void size( const std::vector<T>& theVector )
+    void add_size( const std::vector<T>& theVector )
     {
         m_size += 2;
         
         for( const auto& element :  theVector )
         {
-            size( element );
+            add_size( element );
         }
     }
     
-    void size( const PlayerStatus& playerStatus )
+    template<typename T>
+    void add_size( const T& tObject )
     {
-        size( playerStatus.m_playerName );
-        size( static_cast<uint16_t>(playerStatus.m_status) );
+        tObject.fields( *this );
     }
-    
 };
 
 template<class PacketT>
-PacketT readPacket( const uint8_t* buffer, size_t bufferSize )
-{
-    PacketT packet;
-    PacketReader reader( buffer, buffer+ bufferSize );
-    packet.fields( reader );
-    return packet;
-}
-
-template<class PacketT>
-void writePacket( PacketT& packet, uint8_t* buffer, size_t bufferSize )
-{
-    PacketWriter writer( buffer, bufferSize, PacketT::packetType() );
-    packet.fields( writer );
-}
-
-template<class PacketT>
-uint8_t* createOutgoingMessage( PacketT& packet, size_t& outRcpPacketSize )
+uint8_t* createEnvelope( const std::string& playerName, PacketT& packet, size_t& outTcpPacketSize )
 {
     PacketSize calculator;
-    packet.fields( calculator );
-    outRcpPacketSize = calculator.size() + 4;
     
-    uint8_t* buffer = new uint8_t[outRcpPacketSize];
-    PacketWriter writer( buffer, outRcpPacketSize, packet.packetType() );
+    // TCP packet size
+    calculator.add_size( uint16_t{} );
+    
+    // Player name
+    calculator.add_size( playerName );
+
+    // tic_tac packet type
+    calculator.add_size( uint16_t{} );
+
+    // packet bytes
+    packet.fields( calculator );
+    
+    outTcpPacketSize = calculator.size();
+    
+    uint8_t* buffer = new uint8_t[outTcpPacketSize];
+    PacketWriter writer( buffer, outTcpPacketSize );
+    
+    writer.write( static_cast<uint16_t>( outTcpPacketSize ) );
+    writer.write( playerName );
+    writer.write( (uint16_t) PacketT::packetType() );
     packet.fields( writer );
     
     return buffer;

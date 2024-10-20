@@ -43,11 +43,6 @@ public:
         }
     }
 
-    virtual void doWrite( const uint8_t* message, size_t size ) override
-    {
-        write( message, size );
-    }
-    
     void write( const uint8_t* message, size_t size ) {
         boost::asio::async_write(m_socket, boost::asio::buffer(message,size),
             [message,self = this->shared_from_this()](const boost::system::error_code& ec, std::size_t length)
@@ -66,18 +61,10 @@ private:
             boost::asio::async_connect(m_socket, endpoint_iterator,
                 [self = this->shared_from_this()](const boost::system::error_code& ec, tcp::resolver::iterator) {
                     self->onConnect(ec);
+                    self->readPacketHeader();
                 });
         } else {
             std::cerr << "Error resolving: " << ec.message() << "\n";
-        }
-    }
-
-    void onConnect(const boost::system::error_code& ec) {
-        if (!ec) {
-            std::cout << "Successfully connected to the server!\n";
-            readPacketHeader();
-        } else {
-            std::cerr << "Error connecting: " << ec.message() << "\n";
         }
     }
 
@@ -105,7 +92,10 @@ private:
             return;
         }
         
-        LOG( "TcpClient received: " << m_dataLength );
+        // tail lenght is packet_len-2
+        m_dataLength -= sizeof(uint16_t);
+        
+        LOG( "TcpClient received packet size: " << m_dataLength );
         
         if ( m_dataLength == 0 || m_dataLength > 1024*1024 )
         {
@@ -115,7 +105,7 @@ private:
         }
 
         
-        m_packetData.resize( m_dataLength );
+        m_packetData.resize( m_dataLength-2 );
         boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength),
                                 [self=this->shared_from_this()] ( auto error, auto bytes_transferred )
         {
@@ -138,12 +128,7 @@ private:
             return;
         }
         
-//        uint8_t* response = new uint8_t[14];
-//        response[0] = 12;
-//        response[0] = 0;
-//        memcpy( response+2, "ba9876543210", 12 );
-//        write( response, 14 );
-        // onPacketReceived
+        this->onPacketReceived( m_packetData.data(), bytes_transferred );
         
         readPacketHeader();
     }
