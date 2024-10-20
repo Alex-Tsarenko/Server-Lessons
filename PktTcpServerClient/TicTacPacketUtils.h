@@ -115,6 +115,15 @@ public:
     }
     
     void operator()() {}
+
+    void write( const uint8_t* buffer, size_t bufferSize )
+    {
+#ifdef DEBUG
+        assert( m_bufferPtr + bufferSize <= m_bufferEnd );
+#endif
+        memcpy( m_bufferPtr, buffer, bufferSize );
+        m_bufferPtr += bufferSize;
+    }
     
     void write( bool value )
     {
@@ -210,7 +219,7 @@ public:
 };
 
 template<class PacketT>
-uint8_t* createEnvelope( const std::string& playerName, PacketT& packet, size_t& outTcpPacketSize )
+inline uint8_t* createEnvelope( const std::string& playerName, const PacketT& packet, size_t& outTcpPacketSize )
 {
     PacketSize calculator;
     
@@ -224,7 +233,7 @@ uint8_t* createEnvelope( const std::string& playerName, PacketT& packet, size_t&
     calculator.add_size( uint16_t{} );
 
     // packet bytes
-    packet.fields( calculator );
+    const_cast<PacketT&>(packet).fields( calculator );
     
     outTcpPacketSize = calculator.size();
     
@@ -234,7 +243,30 @@ uint8_t* createEnvelope( const std::string& playerName, PacketT& packet, size_t&
     writer.write( static_cast<uint16_t>( outTcpPacketSize ) );
     writer.write( playerName );
     writer.write( (uint16_t) PacketT::packetType() );
-    packet.fields( writer );
+    const_cast<PacketT&>(packet).fields( writer );
+    
+    return buffer;
+}
+
+inline uint8_t* createEnvelope2( const std::string& playerName, const std::vector<uint8_t>& packetData, size_t offset, size_t& outTcpPacketSize )
+{
+    PacketSize calculator;
+    
+    // TCP packet size
+    calculator.add_size( uint16_t{} );
+    
+    // Player name
+    calculator.add_size( playerName );
+
+    outTcpPacketSize = calculator.size() + packetData.size() - offset;
+    
+    uint8_t* buffer = new uint8_t[outTcpPacketSize];
+    PacketWriter writer( buffer, outTcpPacketSize );
+    
+    writer.write( static_cast<uint16_t>( outTcpPacketSize ) );
+    writer.write( playerName );
+
+    writer.write( packetData.data()+offset, packetData.size() - offset );
     
     return buffer;
 }

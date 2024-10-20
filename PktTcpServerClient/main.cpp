@@ -19,20 +19,20 @@ int main()
     }).detach();
     
     
-    auto client = std::make_shared< TcpClient< tic_tac::Client<DbgUiClient> > >();
+    auto client = std::make_shared< TcpClient< tic_tac::Client<DbgUiClient> > >( "client1" );
     
     std::thread clientThread( [&]
     {
-        client->run( "localhost", "15001", "DbgClient1" );
+        client->run( "localhost", "15001" );
     });
     
     usleep(100);
 
-    auto client2 = std::make_shared< TcpClient< tic_tac::Client<DbgUiClient> > >();
+    auto client2 = std::make_shared< TcpClient< tic_tac::Client<DbgUiClient> > >( "client2" );
     
     std::thread clientThread2( [&]
     {
-        client2->run( "localhost", "15001", "DbgClient2" );
+        client2->run( "localhost", "15001" );
     });
     
     clientThread.join();

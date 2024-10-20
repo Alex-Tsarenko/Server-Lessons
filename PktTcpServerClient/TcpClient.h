@@ -18,16 +18,14 @@ class TcpClient : public std::enable_shared_from_this<TcpClient<T>>, public T
     std::vector<uint8_t>   m_packetData;
 
 public:
-    TcpClient() : T(),
+    template<class ...Args>
+    TcpClient( Args&... parameters ) : T( parameters... ),
         m_context(), m_resolver(m_context), m_socket(m_context)
     {
     }
 
-    template<class ...Args>
-    void run(  const std::string& host, const std::string& port, Args&... initParameters )
+    void run(  const std::string& host, const std::string& port )
     {
-        this->initClient( initParameters... );
-        
         tcp::resolver::query query(host, port);
         m_resolver.async_resolve(query,
             [self = this->shared_from_this()](const boost::system::error_code& ec, tcp::resolver::iterator endpoint_iterator) {
@@ -49,7 +47,7 @@ public:
         {
             delete [] message;
             if (!ec) {
-                std::cout << "Sent message: " << length << " bytes\n";
+                LOG( "Client sent message: " << length << " bytes" );
             }
         });
     }

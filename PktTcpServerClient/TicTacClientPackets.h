@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <map>
 
 namespace tic_tac
 {
@@ -138,7 +139,7 @@ struct ServerPacketPlayerList
     std::vector<PlayerStatus> m_playerList;
     
     ServerPacketPlayerList() {}
-    ServerPacketPlayerList( const std::vector<PlayerStatus>& playerList ) : m_playerList(playerList) {}
+    ServerPacketPlayerList( std::vector<PlayerStatus>&& playerList ) : m_playerList( std::move(playerList) ) {}
 
     constexpr static PacketType packetType()  { return spt_player_list; }
     

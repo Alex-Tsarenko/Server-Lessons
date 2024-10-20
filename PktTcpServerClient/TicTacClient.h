@@ -10,16 +10,9 @@ namespace tic_tac {
 template<class UiClientT>
 class Client: public UiClientT
 {
-    std::string m_playerName;
 public:
-    Client()  {}
-    Client( std::string playerName ) : m_playerName(playerName) {}
+    Client( std::string playerName ) : UiClientT(playerName) {}
     
-    void initClient( const std::string& playerName )
-    {
-        m_playerName = playerName;
-    }
-
     template<class Packet>
     void sendPacketTo( Packet& packet, const std::string playerName )
     {
@@ -31,8 +24,8 @@ public:
     void onConnect( const boost::system::error_code& ec )
     {
         if (!ec) {
-            std::cout << "Successfully connected to the server!\n";
-            PacketHi packet{ m_playerName };
+            LOG( "Successfully connected to the server!" );
+            PacketHi packet{ UiClientT::m_playerName };
             sendPacketTo( packet, {} );
         } else {
             std::cerr << "Error connecting: " << ec.message() << "\n";
@@ -56,17 +49,24 @@ public:
                 {
                     ServerPacketPlayerList packet;
                     reader.read( packet );
+                    UiClientT::onPlayerListReceived( packet.m_playerList );
                     break;
                 }
             }
         }
         else
         {
+            // Packets from another player
             PacketType packetType;
             reader.read( reinterpret_cast<uint16_t&>(packetType) );
             
             switch( packetType )
             {
+                case cpt_invite:
+                    PacketInvite packet;
+                    reader.read( packet );
+                    UiClientT::onInviteReceivedFrom( playerName );
+                    break;
             }
         }
     }

@@ -12,7 +12,7 @@
 
 template<class AppliedServerT,class AppliedSessionT>
 class TcpClientSession:
-    public std::enable_shared_from_this< TcpClientSession< AppliedServerT, AppliedSessionT >>,
+    //public std::enable_shared_from_this< TcpClientSession< AppliedServerT, AppliedSessionT >>,
     public AppliedSessionT
 {
 protected:
@@ -50,7 +50,8 @@ public:
         
         boost::asio::async_read( m_socket, boost::asio::buffer(&m_dataLength, sizeof(m_dataLength)), [self=this->shared_from_this()] ( auto error, auto bytes_transferred )
         {
-            self->doReadPacketHeader( error, bytes_transferred );
+            auto* ptr = static_cast<TcpClientSession<AppliedServerT,AppliedSessionT>*> ( self.get() );
+            ptr -> doReadPacketHeader( error, bytes_transferred );
         });
     }
     
@@ -69,13 +70,14 @@ public:
             return;
         }
         
-        LOG( "received: " << m_dataLength );
+        LOG( "TcpClientSession received: " << m_dataLength );
 
         m_packetData.resize( m_dataLength );
         boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength-2 ),
                                 [self=this->shared_from_this()] ( auto error, auto bytes_transferred )
         {
-            self->readPacketData( error, bytes_transferred );
+            auto* ptr = static_cast<TcpClientSession<AppliedServerT,AppliedSessionT>*> ( self.get() );
+            ptr->readPacketData( error, bytes_transferred );
         });
     }
     
