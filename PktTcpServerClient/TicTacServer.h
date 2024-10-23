@@ -56,6 +56,8 @@ public:
     {
         m_playerStatusMap.erase( playerName );
     }
+    
+    bool sendEnvelopTo( const std::string& playerTo, uint8_t* envelopBuffer, size_t envelopSize );
 };
 
 
@@ -99,9 +101,7 @@ public:
             size_t   envelopSize;
             uint8_t* envelop = createEnvelope2( m_playerName, buffer, offset, envelopSize );
             
-            //??????????????
-            
-            sendEnvelopFrom( envelop, envelopSize );
+            m_server.sendEnvelopTo( playerName, envelop, envelopSize );
         }
         else
         {
@@ -145,29 +145,25 @@ public:
         return true;
     }
     
-    template<class PacketT>
-    void sendPacket( PacketT& packet, const std::string& playerName  )
-    {
-        //todo envelop
-        
-        PacketSize packetSizeCalculator;
-        packet.fields( packetSizeCalculator );
-        size_t packetSize = packetSizeCalculator.size();
-    
-        //todo packetSize == 0
-        if ( packetSize > 0 )
-        {
-            uint8_t* buffer = new uint8_t[packetSize];
-            PacketWriter writer( buffer, packetSize);
-            sendPacket( buffer, packetSize );
-        }
-    }
-    
-    void sendPacket( const uint8_t* bufferPtr, size_t bufferSize )
+    void sendEnvelop( const uint8_t* bufferPtr, size_t bufferSize )
     {
         static_cast<TcpClientSession<Server,Session>*>(this) -> write( bufferPtr, bufferSize );
     }
-    
 };
+
+inline bool Server::sendEnvelopTo( const std::string& playerTo, uint8_t* envelopBuffer, size_t envelopSize )
+{
+    auto it = m_playerStatusMap.find( playerTo );
+    if ( it != m_playerStatusMap.end() )
+    {
+        if ( auto sessionPtr = it->second.m_sessionPtr.lock(); sessionPtr )
+        {
+            sessionPtr->sendEnvelop( envelopBuffer, envelopSize );
+            return true;
+        }
+    }
+    return false;
+}
+
 
 }

@@ -30,16 +30,16 @@ public:
 
     void write( const uint8_t* response, size_t dataSize )
     {
-        LOG( "TcpClientSession write: " << dataSize );
+        LOG( "#TcpClientSession write: " << dataSize );
         
         m_socket.async_send( boost::asio::buffer( response, dataSize ),
             [self=this->shared_from_this(),response] ( auto error, auto sentSize )
         {
-            LOG( "TcpClientSession sentSize: " << sentSize );
+            LOG( "#TcpClientSession sentSize: " << sentSize );
             delete response;
             if (error)
             {
-                LOG_ERR( "TcpClientSession async_send error: " << error.message() );
+                LOG_ERR( "#TcpClientSession async_send error: " << error.message() );
             }
         });
     }
@@ -59,18 +59,18 @@ public:
     {
         if ( error )
         {
-            LOG_ERR( "TcpClientSession read error: " << error.message() );
+            LOG_ERR( "#TcpClientSession read error: " << error.message() );
             //connectionLost( error );
             return;
         }
         if ( bytes_transferred != sizeof(m_dataLength) )
         {
-            LOG_ERR( "TcpClientSession read error (m_dataLength): " << bytes_transferred << " vs " << sizeof(m_dataLength) );
+            LOG_ERR( "#TcpClientSession read error (m_dataLength): " << bytes_transferred << " vs " << sizeof(m_dataLength) );
             //connectionLost( error );
             return;
         }
         
-        LOG( "TcpClientSession received: " << m_dataLength );
+        LOG( "#TcpClientSession received: " << m_dataLength );
 
         m_packetData.resize( m_dataLength );
         boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength-2 ),
@@ -85,13 +85,13 @@ public:
     {
         if ( error )
         {
-            LOG_ERR( "TcpClientSession read error: " << error.message() );
+            LOG_ERR( "#TcpClientSession read error: " << error.message() );
             //connectionLost( error );
             return;
         }
         if ( bytes_transferred != m_dataLength-2 )
         {
-            LOG_ERR( "TcpClientSession read error (bytes_transferred): " << bytes_transferred << " vs "  << m_dataLength );
+            LOG_ERR( "#TcpClientSession read error (bytes_transferred): " << bytes_transferred << " vs "  << m_dataLength );
             //connectionLost( error );
             return;
         }
@@ -128,7 +128,7 @@ public:
             m_acceptor = boost::asio::ip::tcp::acceptor( m_context, m_endpoint );
         }
         catch( std::runtime_error& e ) {
-            LOG("TcpServer exception: " << e.what() )
+            LOG("#TcpServer exception: " << e.what() )
             LOG("??? Port already in use ???" )
             exit(0);
         }

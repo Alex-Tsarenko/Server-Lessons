@@ -47,7 +47,7 @@ public:
         {
             delete [] message;
             if (!ec) {
-                LOG( "Client sent message: " << length << " bytes" );
+                LOG( "@" << self->m_playerName << ": Client sent message: " << length << " bytes" );
             }
         });
     }
@@ -93,11 +93,11 @@ private:
         // tail lenght is packet_len-2
         m_dataLength -= sizeof(uint16_t);
         
-        LOG( "TcpClient received packet size: " << m_dataLength );
+        LOG( "@" << T::m_playerName << ": TcpClient received packet size: " << m_dataLength );
         
         if ( m_dataLength == 0 || m_dataLength > 1024*1024 )
         {
-            LOG_ERR( "TcpClient invalid dataLength: " << m_dataLength );
+            LOG_ERR( "@" << T::m_playerName << ": TcpClient invalid dataLength: " << m_dataLength );
             //connectionLost( error );
             return;
         }

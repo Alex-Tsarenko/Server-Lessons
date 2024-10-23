@@ -20,24 +20,22 @@ public:
         {
             if ( info.m_status == tic_tac::cst_accesible )
             {
-                LOG( "PlayerList: " << m_playerName << " " << info.m_playerName );
+                LOG( "*** " << m_playerName << ": PlayerList: " << " " << info.m_playerName );
                 availablePlayer = info;
             }
         }
         
         if ( availablePlayer )
         {
-            LOG( "Send Invititaion: " << m_playerName << " to: " << availablePlayer->m_playerName );
+            LOG( "*** " << m_playerName << ": Send Invititaion: to: " << availablePlayer->m_playerName );
             sendPacketTo( availablePlayer->m_playerName, tic_tac::PacketInvite{} );
         }
-        
     }
     
     void onInviteReceivedFrom( const std::string& partnerName )
     {
-        LOG( "onInviteReceivedFrom: " << m_playerName << ": from:  " << partnerName );
+        LOG( "*** " << m_playerName << ": onInviteReceivedFrom: " << partnerName );
     }
-
     
     template<class PacketT>
     void sendPacketTo( const std::string toPlayerName, const PacketT& packet )
