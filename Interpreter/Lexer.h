@@ -71,17 +71,29 @@ public:
         */
         auto start = m_ptr;
         auto startPos = m_pos;
-        for( m_ptr++; (m_ptr < m_endPtr) && isdigit(*m_ptr); m_ptr++, m_pos++ ) {}
+        m_ptr++;
+        m_pos++;
+        while( (m_ptr < m_endPtr) && isdigit(*m_ptr) )
+        {
+            m_ptr++;
+            m_pos++;
+        }
         
         bool hasDecimal = false;
-        if ( *m_ptr == '.') {
+        if ( *m_ptr == '.')
+        {
             hasDecimal = true;
-            for( m_ptr++; (m_ptr < m_endPtr) && isdigit(*m_ptr); m_ptr++, m_pos++ ) {}
+            m_ptr++;
+            m_pos++;
+            while( (m_ptr < m_endPtr) && isdigit(*m_ptr) )
+            {
+                m_ptr++;
+                m_pos++;
+            }
         }
-        addToken( Token{ hasDecimal ? TokenType::Float : TokenType::Int, std::string(start,m_ptr), m_line, startPos } );
+        addToken( Token{ hasDecimal ? TokenType::Float : TokenType::Int, std::string(start,m_ptr), m_line, startPos, m_pos } );
         m_ptr--;
         m_pos--;
-        
     }
     
     std::string tolower(std::string s)
@@ -140,7 +152,13 @@ public:
         */
         auto start = m_ptr;
         auto startPos = m_pos;
-        for( m_ptr++; (m_ptr < m_endPtr) && (isalnum(*m_ptr) or *m_ptr == '_') ; m_ptr++, m_pos++ ) {}
+        m_ptr++;
+        m_pos++;
+        while( (m_ptr < m_endPtr) && (isalnum(*m_ptr) or *m_ptr == '_') )
+        {
+            m_ptr++;
+            m_pos++;
+        }
 
         auto lexeme = std::string(start,m_ptr);
 
@@ -160,7 +178,7 @@ public:
             default: break;
         }
 
-        addToken( Token{ type, std::move(lexeme), m_line, startPos } );
+        addToken( Token{ type, std::move(lexeme), m_line, startPos, m_pos } );
 
         m_ptr--;
         m_pos--;
@@ -171,10 +189,15 @@ public:
         m_ptr = m_text.data();
         m_endPtr = m_ptr + m_text.size();
         
-        for( ; m_ptr < m_endPtr; m_ptr++, m_pos++ )
+        while( m_ptr < m_endPtr )
         {
+            m_ptr++;
+            m_pos++;
+            
             switch( *m_ptr )
             {
+                case 0:
+                    return;
                 case ':':
                     addToken( TokenType::Colon );
                     break;
@@ -264,10 +287,11 @@ public:
                     break;
                 case ' ':
                 case '\t':
-                case '\r':
+                    m_pos++;
                     // ignore whitespaces
                     break;
                 case '\n':
+                case '\r':
                     m_line++;
                     m_pos = -1;
                     addToken( TokenType::Newline );

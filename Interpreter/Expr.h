@@ -7,6 +7,52 @@
 
 class Executor;
 
+const char* getLineEnd( const char* text )
+{
+    for( const char* ptr = text; ; ptr++ )
+    {
+        if ( *ptr == '\n' || *ptr == '\r' || *ptr == 0 )
+        {
+            return ptr;
+        }
+    }
+}
+
+
+std::string getLine( const char* text, int lineNumber )
+{
+    if ( lineNumber == 0)
+    {
+        return std::string( text, getLineEnd(text) );
+    }
+    
+    int number = 0;
+    for( const char* ptr = text; *ptr != 0; ptr++ )
+    {
+        if ( *ptr == 0 )
+        {
+            return "";
+        }
+        
+        if ( *ptr == '\n' || *ptr == '\r' )
+        {
+            number++;
+            while( *ptr == '\n' || *ptr == '\r' )
+            {
+                ptr++;
+                if ( *ptr == 0 )
+                {
+                    return "";
+                }
+            }
+            if ( number == lineNumber )
+            {
+                return std::string( ptr, getLineEnd(ptr) );
+            }
+        }
+    }
+}
+
 namespace expr {
 
 struct Expression

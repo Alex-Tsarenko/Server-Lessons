@@ -10,4 +10,5 @@ struct Token
     
     int line;
     int pos;
+    int endPos;
 };

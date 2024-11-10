@@ -10,8 +10,7 @@
 
 
 const char * test = R"V0G0N(
-
-func factorial( n: Int )
+func factorial( n: Int ])
 {
     if ( n < 0 ) {
         raise ArithmeticError()
@@ -38,8 +37,13 @@ int main()
     Lexer lexer( test );
     lexer.run();
     
+    for( auto& token: lexer.tokens() )
+    {
+        LOG( "#" << gTokenTypeStrings[token.type] << "# " << token.line << " " << token.pos << " "<< token.endPos )
+    }
+    
     Parser parser;
-    parser.parse( lexer.tokens() );
+    parser.parseProgram( test, lexer.tokens() );
     
     return 0;
 }

@@ -35,19 +35,33 @@ public:
     
     void onError( std::string errorText, int line, int pos ) {}
 
-    void parse( const std::vector<Token>& tokens )
+    void parseProgram( const char* programText, const std::vector<Token>& tokens )
     {
         m_tokenIt  = tokens.begin();
         m_tokenEnd = tokens.end();
 
         m_current = &m_program;
         
-        for( const auto& it : tokens )
+        try
         {
-            parseStatement();
+            for( const auto& it : tokens )
+            {
+                parseStatement();
+            }
+        }
+        catch( syntax_error& error )
+        {
+            std::cerr << "!!! Syntax error: " << error.what() << std::endl;
+            std::cerr << getLine( programText, error.m_line+1 ) << std::endl;
+            for( int i=0; i<error.m_position; i++ )
+            {
+                std::cerr << ' ';
+            }
+            std::cerr << '^'  << std::endl;
         }
     }
-    
+
+protected:
     void parseStatement()
     {
         while( m_tokenIt != m_tokenEnd && m_tokenIt->type == Newline )
@@ -57,9 +71,10 @@ public:
         
         if ( m_tokenIt == m_tokenEnd )
         {
+            //TODO ')' ',' ';'
             if ( m_blockLevel != 0 )
             {
-                throw syntax_error( "unexpected end of file", (m_tokenIt-1)->line, -1 );
+                throw syntax_error( "unexpected end of file, expected '}'", (m_tokenIt-1)->line, -1 );
             }
             return;
         }
@@ -104,12 +119,40 @@ public:
         while( m_tokenIt->type == Newline );
     }
     
+    void tokenMustBe( TokenType type )
+    {
+        if ( m_tokenIt->type != type )
+        {
+            throw syntax_error( std::string("expected: ")+gTokenTypeStrings[type], m_tokenIt->line, m_tokenIt->pos );
+        }
+    }
+    
     void nextToken( TokenType type )
     {
         nextToken();
         if ( m_tokenIt->type != type )
         {
             throw syntax_error( std::string("expected: ")+gTokenTypeStrings[type], m_tokenIt->line, m_tokenIt->pos );
+        }
+    }
+    
+    bool tokenIs( TokenType type )
+    {
+        return m_tokenIt->type == type;
+    }
+    
+    void tokenMustBeType()
+    {
+        nextToken();
+        switch( m_tokenIt->type )
+        {
+            case Int:
+            case Float:
+            case String:
+                break;
+                
+            default:
+                throw syntax_error( std::string("expected type: "), m_tokenIt->line, m_tokenIt->pos );
         }
     }
     
@@ -135,15 +178,21 @@ public:
         expr::Func* func = new expr::Func;
         m_current->m_list.push_back( func );
         
+        // Save function name
         func->m_name = m_tokenIt->lexeme;
         
         nextToken( LeftParen );
         nextToken();
         
+        int argumentNumber = 0;
         while( m_tokenIt->type != RightParen )
         {
             if ( m_tokenIt->type != Identifier )
             {
+                if ( argumentNumber == 0 )
+                {
+                    throw syntax_error( std::string("expected ')': "), m_tokenIt->line, m_tokenIt->pos );
+                }
                 throw syntax_error( std::string("expected argument name: "), m_tokenIt->line, m_tokenIt->pos );
             }
 
@@ -155,6 +204,12 @@ public:
             
             func->m_argList.emplace_back( expr::Argument{std::move(name), m_tokenIt->lexeme} );
             nextToken();
+
+            if ( ! tokenIs( Comma ) )
+            {
+                tokenMustBe( RightParen );
+                break;
+            }
         }
 
         nextToken( LeftBrace );
