@@ -13,15 +13,16 @@ enum TokenType
     Pass,
     
     // Operators
-    Plus, Minus,
+    Plus, PlusPlusRight, PlusPlusLeft,
+    Minus, MinusMinusRight, MinusMinusLeft,
     Star, DoubleStar,
     Slash, DoubleSlash, Mod,
-    Pipe, Caret, Ampersand, Tilde,
+    Or, Or2, Caret, Ampersand, Tilde,
     LeftShift, RightShift,
     Less, LessEqual,
     Greater, GreaterEqual,
-    Equals, EqualEqual,
-    Bang, BangEqual,
+    Assignment, Assignment2, EqualEqual,
+    Not, NotEqual,
     PlusEqual, MinusEqual,
     StarEqual, SlashEqual, ModEqual,
     AndEqual, OrEqual, XorEqual,
@@ -43,4 +44,5 @@ enum TokenType
     
     // Others
     Error,
+    EndOfTokenType,
 };

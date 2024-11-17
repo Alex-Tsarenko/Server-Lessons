@@ -27,7 +27,7 @@ public:
 
     void addToken( TokenType type )
     {
-        LOG( "token: " << gTokenTypeStrings[type] );
+        //LOG( "token: " << gTokenTypeStrings[type] );
         m_tokens.push_back( Token{ type, "", m_line, m_pos } );
     }
     
@@ -230,10 +230,48 @@ public:
                     addToken( TokenType::Dot );
                     break;
                 case '-':
-                    addToken( ifNext('=') ? TokenType::MinusEqual : TokenType::Minus );
+                    if ( ifNext('=') )
+                    {
+                        addToken( TokenType::MinusEqual );
+                    }
+                    else if ( ifNext('+') )
+                    {
+                        int size = m_tokens.size();
+                        if ( size > 0 && m_tokens[size-1].type == TokenType::Identifier )
+                        {
+                            addToken( TokenType::MinusMinusRight );
+                        }
+                        else
+                        {
+                            addToken( TokenType::MinusMinusLeft );
+                        }
+                    }
+                    else
+                    {
+                        addToken( TokenType::Minus );
+                    }
                     break;
                 case '+':
-                    addToken( ifNext('=') ? TokenType::PlusEqual : TokenType::Plus );
+                    if ( ifNext('=') )
+                    {
+                        addToken( TokenType::PlusEqual );
+                    }
+                    else if ( ifNext('+') )
+                    {
+                        int size = m_tokens.size();
+                        if ( size > 0 && m_tokens[size-1].type == TokenType::Identifier )
+                        {
+                            addToken( TokenType::PlusPlusRight );
+                        }
+                        else
+                        {
+                            addToken( TokenType::PlusPlusLeft );
+                        }
+                    }
+                    else
+                    {
+                        addToken( TokenType::Plus );
+                    }
                     break;
                 case ';':
                     addToken( TokenType::Semicolon );
@@ -250,10 +288,12 @@ public:
                     addToken( ifNext('=') ? TokenType::ModEqual : TokenType::Mod );
                     break;
                 case '|':
-                    addToken( ifNext('=') ? TokenType::OrEqual : TokenType::Pipe );
+                    addToken( ifNext('=') ? TokenType::OrEqual :
+                             ifNext('&') ? TokenType::Or2 : TokenType::Or );
                     break;
                 case '&':
-                    addToken( ifNext('=') ? TokenType::AndEqual : TokenType::Ampersand );
+                    addToken( ifNext('=') ? TokenType::AndEqual :
+                             ifNext('&') ? TokenType::Ampersand2 : TokenType::Ampersand );
                     break;
                 case '^':
                     addToken( ifNext('=') ? TokenType::XorEqual : TokenType::Caret );
@@ -265,7 +305,7 @@ public:
                     addToken( ifNext('=') ? TokenType::BangEqual : TokenType::Bang );
                     break;
                 case '=':
-                    addToken( ifNext('=') ? TokenType::EqualEqual : TokenType::Equals );
+                    addToken( ifNext('=') ? TokenType::EqualEqual : TokenType::Assignment );
                     break;
                 case '<':
                     addToken( ifNext('<') ?
@@ -287,7 +327,6 @@ public:
                     break;
                 case ' ':
                 case '\t':
-                    m_pos++;
                     // ignore whitespaces
                     break;
                 case '\n':

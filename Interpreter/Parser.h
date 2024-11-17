@@ -1,17 +1,20 @@
 #pragma once
 
 #include "Expr.h"
+#include <stack>
 
 struct syntax_error: public std::runtime_error
 {
     std::string m_error;
     int         m_line;
     int         m_position;
-    
-    syntax_error( const std::string& error, int line, int position ) : std::runtime_error(error),
+    int         m_endPosition;
+
+    syntax_error( const std::string& error, int line, int position, int end ) : std::runtime_error(error),
       m_error(error),
       m_line(line),
-      m_position(position)
+      m_position(position),
+      m_endPosition(end)
     {}
 
 //    runtime_error(const runtime_error&);
@@ -29,6 +32,14 @@ class Parser
     std::vector<Token>::const_iterator m_tokenEnd;
     
     int m_blockLevel = 0;
+    
+    // a+(0+(b+c))
+    // [+ a (+ 0 (+ b) c]
+    struct BinaryPraser
+    {
+        
+    };
+    std::stack<expr::ExpressionPtr> m_exprStack;
     
 public:
     Parser() {}
@@ -53,35 +64,40 @@ public:
         {
             std::cerr << "!!! Syntax error: " << error.what() << std::endl;
             std::cerr << getLine( programText, error.m_line+1 ) << std::endl;
-            for( int i=0; i<error.m_position; i++ )
+            for( int i=0; i<error.m_position-1; i++ )
             {
                 std::cerr << ' ';
             }
-            std::cerr << '^'  << std::endl;
+            for( int i=error.m_position; i<error.m_endPosition; i++ )
+            {
+                std::cerr << '^';
+            }
+            std::cerr << std::endl;
         }
     }
 
 protected:
+
     void parseStatement()
     {
-        while( m_tokenIt != m_tokenEnd && m_tokenIt->type == Newline )
-        {
-            m_tokenIt++;
-        }
+        skipNewLines();
         
-        if ( m_tokenIt == m_tokenEnd )
+        if ( isEof() )
         {
             //TODO ')' ',' ';'
             if ( m_blockLevel != 0 )
             {
-                throw syntax_error( "unexpected end of file, expected '}'", (m_tokenIt-1)->line, -1 );
+                throw syntax_error( "unexpected end of file, expected '}'", (m_tokenIt-1)->line, (m_tokenIt-1)->pos, (m_tokenIt-1)->endPos );
             }
             return;
         }
 
         switch ( m_tokenIt->type ) {
+            case Var:
+                parseVar();
+                break;
             case Func:
-                parseFunc();
+                parseFuncDef();
                 break;
             case If:
                 parseIf();
@@ -96,7 +112,7 @@ protected:
             case RightBrace:
                 if ( m_blockLevel == 0 )
                 {
-                    throw syntax_error( std::string("unexpected ")+gTokenTypeStrings[RightBrace], (m_tokenIt-1)->line, -1 );
+                    throw syntax_error( std::string("unexpected ")+gTokenTypeStrings[RightBrace], (m_tokenIt-1)->line, (m_tokenIt-1)->pos, (m_tokenIt-1)->endPos );
                 }
                 m_tokenIt--;
                 break;
@@ -111,11 +127,12 @@ protected:
         do
         {
             m_tokenIt++;
-            if ( m_tokenIt == m_tokenEnd )
+            if ( isEof() )
             {
-                throw syntax_error( "unexpected end of file", (m_tokenIt-1)->line, -1 );
+                throw syntax_error( "unexpected end of file", (m_tokenIt-1)->line, (m_tokenIt-1)->pos, (m_tokenIt-1)->endPos );
             }
         }
+        // Убрать Newline-ы чтобы не мешали дальнейшему парсингу
         while( m_tokenIt->type == Newline );
     }
     
@@ -123,7 +140,7 @@ protected:
     {
         if ( m_tokenIt->type != type )
         {
-            throw syntax_error( std::string("expected: ")+gTokenTypeStrings[type], m_tokenIt->line, m_tokenIt->pos );
+            throw syntax_error( std::string("expected: '")+gTokenTypeStrings[type]+"'", m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
         }
     }
     
@@ -132,18 +149,35 @@ protected:
         nextToken();
         if ( m_tokenIt->type != type )
         {
-            throw syntax_error( std::string("expected: ")+gTokenTypeStrings[type], m_tokenIt->line, m_tokenIt->pos );
+            throw syntax_error( std::string("expected: '")+gTokenTypeStrings[type]+"'", m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
         }
     }
     
+    bool isEof()
+    {
+        return m_tokenIt == m_tokenEnd;
+    }
+
+    void skipNewLines()
+    {
+        while( !isEof() && m_tokenIt->type == Newline )
+        {
+            m_tokenIt++;
+        }
+    }
+
     bool tokenIs( TokenType type )
     {
         return m_tokenIt->type == type;
     }
     
+    bool nextTokenIs( TokenType type )
+    {
+        return ((m_tokenIt+1) != m_tokenEnd)  &&  ((m_tokenIt+1)->type == type);
+    }
+    
     void tokenMustBeType()
     {
-        nextToken();
         switch( m_tokenIt->type )
         {
             case Int:
@@ -152,27 +186,105 @@ protected:
                 break;
                 
             default:
-                throw syntax_error( std::string("expected type: "), m_tokenIt->line, m_tokenIt->pos );
+                throw syntax_error( std::string("expected type: "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
         }
     }
+
     
-    void nextTokenMustBeType()
+    expr::ExpressionPtr parseExpr()
     {
-        nextToken();
-        switch( m_tokenIt->type )
+        static char opratorTokenTable[EndOfTokenType] = {0};
+        if ( opratorTokenTable[Plus] == 0 )
         {
-            case Int:
-            case Float:
-            case String:
-                break;
-                
-            default:
-                throw syntax_error( std::string("expected type: "), m_tokenIt->line, m_tokenIt->pos );
+            opratorTokenTable[PlusPlusRight] = 2;
+            opratorTokenTable[MinusMinusRight] = 2;
+            opratorTokenTable[PlusPlusLeft] = 3;
+            opratorTokenTable[MinusMinusLeft] = 3;
+            opratorTokenTable[Not] = 3;
+            opratorTokenTable[Tilde] = 3;
+            opratorTokenTable[Ampersand] = 3;
+            opratorTokenTable[Star] = 5;
+            opratorTokenTable[Slash] = 5;
+            opratorTokenTable[Mod] = 5;
+            opratorTokenTable[Plus] = 6;
+            opratorTokenTable[Minus] = 6;
+            opratorTokenTable[Less] = 9;
+            opratorTokenTable[LessEqual] = 9;
+            opratorTokenTable[Greater] = 9;
+            opratorTokenTable[GreaterEqual] = 9;
+            opratorTokenTable[EqualEqual] = 10;
+            opratorTokenTable[NotEqual] = 10;
+            opratorTokenTable[Ampersand2] = 14;
+            opratorTokenTable[Or2] = 15;
+        }
+
+        std::stack<expr::ExpressionPtr> output;
+        std::stack<expr::ExpressionPtr> opStack;
+        for(;;)
+        {
+            nextToken();
+
+            switch( m_tokenIt->type )
+            {
+                case Identifier:
+                {
+                    break;
+                }
+                case Number:
+                {
+                    break;
+                }
+                case LeftParen:
+                {
+                    break;
+                }
+                case RightParen:
+                {
+                    break;
+                }
+                default:
+                {
+                    auto precedence = opratorTokenTable[m_tokenIt->type];
+                    if ( precedence == 0 )
+                    {
+                        throw syntax_error( std::string("unexpected token: ")+gTokenTypeStrings[m_tokenIt->type], m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
+                    }
+                }
+            }
         }
     }
     
-    void parseFunc()
+    void parseFuncCall()
     {
+        //todo
+    }
+
+    void parseVar()
+    {
+        //
+        // "var" <indentifier> [ "=" <expression> ]
+        //
+        nextToken( Identifier );
+        auto& varName = m_tokenIt->lexeme;
+        expr::ExpressionPtr expr = nullptr;
+        if ( nextTokenIs( Assignment ) )
+        {
+            // skip assignment
+            nextToken();
+            expr = parseExpr();
+        }
+        
+        auto* varExpr = new expr::ExpressionVarDecl{varName};
+        varExpr->m_expr = std::move(expr);
+    }
+
+    void parseFuncDef()
+    {
+//        int y=2;
+//        
+//        int n=5;
+//        int x = 1*n^2;//+--y;
+//        LOG("x: " << x )
 
         nextToken();
         expr::Func* func = new expr::Func;
@@ -184,6 +296,7 @@ protected:
         nextToken( LeftParen );
         nextToken();
         
+        // Parse arguments
         int argumentNumber = 0;
         while( m_tokenIt->type != RightParen )
         {
@@ -191,25 +304,31 @@ protected:
             {
                 if ( argumentNumber == 0 )
                 {
-                    throw syntax_error( std::string("expected ')': "), m_tokenIt->line, m_tokenIt->pos );
+                    throw syntax_error( std::string("expected ')': "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
                 }
-                throw syntax_error( std::string("expected argument name: "), m_tokenIt->line, m_tokenIt->pos );
+                throw syntax_error( std::string("expected argument name: "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
             }
 
+            // Argument name
             std::string name = m_tokenIt->lexeme;
             
             nextToken( Colon );
 
-            nextTokenMustBeType();
-            
-            func->m_argList.emplace_back( expr::Argument{std::move(name), m_tokenIt->lexeme} );
+            // Parse argument type
             nextToken();
+            tokenMustBeType();
+            
+            LOG( "argument: " << name << " Type:" << m_tokenIt->lexeme )
+            func->m_argList.emplace_back( expr::Argument{std::move(name), m_tokenIt->lexeme} );
 
+            nextToken();
             if ( ! tokenIs( Comma ) )
             {
                 tokenMustBe( RightParen );
                 break;
             }
+            nextToken();
+
         }
 
         nextToken( LeftBrace );
@@ -232,7 +351,9 @@ protected:
     
     void parseIf()
     {
-        throw syntax_error( std::string("TODO: "), m_tokenIt->line, m_tokenIt->pos );
+        nextToken( LeftParen );
+        
+        throw syntax_error( std::string("TODO: "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
 
     }
 

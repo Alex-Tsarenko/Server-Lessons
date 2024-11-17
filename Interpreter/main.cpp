@@ -10,14 +10,22 @@
 
 
 const char * test = R"V0G0N(
-func factorial( n: Int ])
+
+func test()
 {
-    if ( n < 0 ) {
-        raise ArithmeticError()
+   var y = 0
+   var x = 1+2*(n^2)+--y
+   y = x+1
+}
+
+func factorial( n: Int, m: Int )
+{
+    if ( (n < 0) ) {
+        return -1
     }
-    if ( var x ) {
-        raise ArithmeticError()
-    }
+#    if ( var x ) {
+#        raise ArithmeticError()
+#    }
     var f = 1
     for ( i=2; i<=n; i++ ) {
         f *= i
@@ -39,7 +47,8 @@ int main()
     
     for( auto& token: lexer.tokens() )
     {
-        LOG( "#" << gTokenTypeStrings[token.type] << "# " << token.line << " " << token.pos << " "<< token.endPos )
+        LOG( gTokenTypeStrings[token.type] )
+//        LOG( "#" << gTokenTypeStrings[token.type] << "# " << token.line << " " << token.pos << " "<< token.endPos )
     }
     
     Parser parser;

@@ -57,24 +57,28 @@ namespace expr {
 
 struct Expression
 {
-//    Object evaluate( Executor& ) = 0;
+    //virtual ~Expression() = default;
 };
 
+//using ExpressionPtr = Expression*;
+
+// It is used for auto-deleting of "Expression"
 struct ExpressionPtr
 {
     ExpressionPtr( Expression* expr ) : m_expr(expr) {}
-    
+
     ExpressionPtr( ExpressionPtr&& exprPtr ) : m_expr(exprPtr.m_expr)
     {
-        if ( this != &exprPtr )
-            exprPtr.m_expr=nullptr;
+        exprPtr.m_expr = nullptr;
     }
     
     ExpressionPtr& operator=( ExpressionPtr&& exprPtr )
     {
         m_expr = exprPtr.m_expr;
         if ( this != &exprPtr )
+        {
             exprPtr.m_expr = nullptr;
+        }
     }
 
     ~ExpressionPtr() {
@@ -82,6 +86,41 @@ struct ExpressionPtr
     }
     
     Expression* m_expr = nullptr;
+};
+
+// Unary expression with unary operator
+struct UnaryExpression: public Expression
+{
+    enum Operator { plus, minus, negation, star, ampersand };
+    
+    Operator       m_op;
+    ExpressionPtr  m_expr;
+};
+
+// Binary expression with unary operator
+struct BinaryExpression: public Expression
+{
+    enum Operator { plus, minus, star, devide, equal, not_equal, less, less_or_equal, more, more_or_equal, left_shift, right_shift, negation, logic_and, logic_or, bit_and, bit_or };
+    
+    Operator       m_op;
+    ExpressionPtr  m_expr;
+    ExpressionPtr  m_expr2;
+};
+
+// Binary expression with unary operator
+//: public Expression
+struct ExpressionVarDecl
+{
+    std::string     m_identifierName;
+    ExpressionPtr   m_expr = nullptr;
+};
+
+
+// Binary expression with unary operator
+struct FunctionCall: public Expression
+{
+    std::string                 m_functionName;
+    std::vector<ExpressionPtr>  m_parameters;
 };
 
 struct ExpressionList: public Expression
