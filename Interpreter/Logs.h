@@ -8,7 +8,7 @@ inline std::mutex gLogMutex;
     #define LOG( expr ) \
     {\
         std::lock_guard<std::mutex> lock(gLogMutex);\
-        std::cout << expr << std::endl; \
+        std::cout << expr << std::endl << std::flush; \
     }
 #endif
 

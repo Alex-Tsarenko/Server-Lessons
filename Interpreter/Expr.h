@@ -55,9 +55,24 @@ std::string getLine( const char* text, int lineNumber )
 
 namespace expr {
 
+inline const Token& nilToken{ EndOfTokenType };
+
 struct Expression
 {
-    //virtual ~Expression() = default;
+    const Token& m_token;
+
+    Expression() : m_token(nilToken) {
+        
+    };
+    Expression( const Token& token ) : m_token(token) {};
+    virtual ~Expression() {
+        
+    };
+    
+    virtual void evaluate()
+    {
+        LOG("evaluate: NIL");
+    }
 };
 
 //using ExpressionPtr = Expression*;
@@ -65,6 +80,8 @@ struct Expression
 // It is used for auto-deleting of "Expression"
 struct ExpressionPtr
 {
+    ExpressionPtr() : m_expr(nullptr) {}
+
     ExpressionPtr( Expression* expr ) : m_expr(expr) {}
 
     ExpressionPtr( ExpressionPtr&& exprPtr ) : m_expr(exprPtr.m_expr)
@@ -94,25 +111,29 @@ struct UnaryExpression: public Expression
     enum Operator { plus, minus, negation, star, ampersand };
     
     Operator       m_op;
-    ExpressionPtr  m_expr;
+    Expression*    m_expr;
 };
 
 // Binary expression with unary operator
-struct BinaryExpression: public Expression
+struct BinaryOpExpression: public Expression
 {
-    enum Operator { plus, minus, star, devide, equal, not_equal, less, less_or_equal, more, more_or_equal, left_shift, right_shift, negation, logic_and, logic_or, bit_and, bit_or };
+    BinaryOpExpression( const Token& token ) : Expression(token) {}
+    Expression*  m_expr;
+    Expression*  m_expr2;
+};
+
+struct UnaryOpExpression: public Expression
+{
+    UnaryOpExpression( const Token& token ) : Expression(token) {}
+    Expression*  m_expr;
+};
+
+struct ExpressionVarDecl: public Expression
+{
+    ExpressionVarDecl( const Token& token ) : Expression(token), m_identifierName(token.lexeme) {}
     
-    Operator       m_op;
-    ExpressionPtr  m_expr;
-    ExpressionPtr  m_expr2;
-};
-
-// Binary expression with unary operator
-//: public Expression
-struct ExpressionVarDecl
-{
-    std::string     m_identifierName;
-    ExpressionPtr   m_expr = nullptr;
+    std::string   m_identifierName;
+    Expression*   m_expr;
 };
 
 
@@ -120,12 +141,12 @@ struct ExpressionVarDecl
 struct FunctionCall: public Expression
 {
     std::string                 m_functionName;
-    std::vector<ExpressionPtr>  m_parameters;
+    std::vector<Expression*>    m_parameters;
 };
 
 struct ExpressionList: public Expression
 {
-    std::list<ExpressionPtr> m_list;
+    std::list<Expression*>  m_list;
 };
 
 struct Argument
@@ -133,6 +154,34 @@ struct Argument
     std::string m_name;
     std::string m_type;
     std::string m_defaultValue;
+};
+
+struct Identifier : public Expression
+{
+    Identifier( const Token& token ) : Expression(token), m_name(token.lexeme) {}
+
+    const std::string&  m_name;
+    std::string         m_type;
+};
+
+struct IntNumber : public Expression
+{
+    IntNumber( const Token& lexeme ) : Expression(lexeme)
+    {
+        m_value = std::stol( m_token.lexeme );
+    }
+
+    int64_t         m_value;
+};
+
+struct FloatNumber : public Expression
+{
+    FloatNumber( const Token& lexeme ) : Expression(lexeme)
+    {
+        m_value = std::stod( m_token.lexeme );
+    }
+
+    double          m_value;
 };
 
 struct Func : public Expression

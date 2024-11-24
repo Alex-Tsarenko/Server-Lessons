@@ -2,6 +2,7 @@
 
 #include "Expr.h"
 #include <stack>
+#include <cassert>
 
 struct syntax_error: public std::runtime_error
 {
@@ -33,13 +34,10 @@ class Parser
     
     int m_blockLevel = 0;
     
-    // a+(0+(b+c))
-    // [+ a (+ 0 (+ b) c]
-    struct BinaryPraser
-    {
-        
-    };
-    std::stack<expr::ExpressionPtr> m_exprStack;
+    std::vector<expr::Expression*> m_exprOutput;
+    std::vector<expr::Expression*> m_operationStack;
+    bool unariOpratorTokenTable[EndOfTokenType] = {false};
+
     
 public:
     Parser() {}
@@ -53,6 +51,10 @@ public:
 
         m_current = &m_program;
         
+        assert( tokens.size() > 0 );
+        assert( tokenIs(Begin) );
+        nextToken();
+
         try
         {
             for( const auto& it : tokens )
@@ -155,7 +157,8 @@ protected:
     
     bool isEof()
     {
-        return m_tokenIt == m_tokenEnd;
+        return m_tokenIt->type == EndOfFile;
+        //return m_tokenIt == m_tokenEnd;
     }
 
     void skipNewLines()
@@ -191,55 +194,157 @@ protected:
     }
 
     
-    expr::ExpressionPtr parseExpr()
+    expr::Expression* parseExpr()
     {
+        // https://en.cppreference.com/w/cpp/language/operator_precedence
+        
+        if ( ! unariOpratorTokenTable[Not] )
+        {
+            unariOpratorTokenTable[Not] = true;
+            unariOpratorTokenTable[PlusPlusRight] = true;
+            unariOpratorTokenTable[PlusPlusLeft] = true;
+            unariOpratorTokenTable[MinusMinusRight] = true;
+            unariOpratorTokenTable[MinusMinusLeft] = true;
+        }
+
         static char opratorTokenTable[EndOfTokenType] = {0};
         if ( opratorTokenTable[Plus] == 0 )
         {
+            opratorTokenTable[LeftParen] = 100;
+
             opratorTokenTable[PlusPlusRight] = 2;
             opratorTokenTable[MinusMinusRight] = 2;
             opratorTokenTable[PlusPlusLeft] = 3;
             opratorTokenTable[MinusMinusLeft] = 3;
             opratorTokenTable[Not] = 3;
             opratorTokenTable[Tilde] = 3;
-            opratorTokenTable[Ampersand] = 3;
+            //opratorTokenTable[Ampersand] = 3;
             opratorTokenTable[Star] = 5;
-            opratorTokenTable[Slash] = 5;
+            opratorTokenTable[And] = 5;
             opratorTokenTable[Mod] = 5;
             opratorTokenTable[Plus] = 6;
             opratorTokenTable[Minus] = 6;
+            opratorTokenTable[LeftShift] = 6;
+            opratorTokenTable[RightShift] = 6;
             opratorTokenTable[Less] = 9;
             opratorTokenTable[LessEqual] = 9;
             opratorTokenTable[Greater] = 9;
             opratorTokenTable[GreaterEqual] = 9;
             opratorTokenTable[EqualEqual] = 10;
             opratorTokenTable[NotEqual] = 10;
-            opratorTokenTable[Ampersand2] = 14;
-            opratorTokenTable[Or2] = 15;
+            opratorTokenTable[BitAnd] = 11;
+            opratorTokenTable[Xor] = 11;
+            opratorTokenTable[BitOr] = 13;
+            opratorTokenTable[And] = 14;
+            opratorTokenTable[Or] = 15;
         }
 
-        std::stack<expr::ExpressionPtr> output;
-        std::stack<expr::ExpressionPtr> opStack;
-        for(;;)
+        assert( m_exprOutput.size() == 0 );
+        assert( m_operationStack.size() == 0 );
+
+        static expr::Expression leftParen{Token{LeftParen,"("}};
+        static expr::Expression rightParen{Token{RightParen,")"}};;
+
+        bool theEnd = false;
+        
+        while( !theEnd )
         {
             nextToken();
 
+            LOG( "parseExpr: " << gTokenTypeStrings[m_tokenIt->type] );
             switch( m_tokenIt->type )
             {
                 case Identifier:
                 {
+                    m_exprOutput.push_back( new expr::Identifier{ *m_tokenIt } );
                     break;
                 }
-                case Number:
+                case Int:
                 {
+                    m_exprOutput.push_back( new expr::IntNumber{ *m_tokenIt } );
+                    break;
+                }
+                case Float:
+                {
+                    m_exprOutput.push_back( new expr::FloatNumber{ *m_tokenIt } );
                     break;
                 }
                 case LeftParen:
                 {
+                    if ( (m_tokenIt-1)->type == Identifier )
+                    {
+                        
+                    }
+                    // Before '(' must be <function name> or '=' or <sign/operation>
+                    else if ( opratorTokenTable[(m_tokenIt-1)->type] == 0
+                             && (m_tokenIt-1)->type != LeftParen
+                             && (m_tokenIt-1)->type != Comma
+                             && (m_tokenIt-1)->type != Assignment )
+                    {
+                        throw syntax_error( std::string("unexpected left parenthesis: "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
+                    }
+                    m_operationStack.push_back( &leftParen );
                     break;
                 }
                 case RightParen:
                 {
+                    for(;;)
+                    {
+                        if ( m_operationStack.size() < 0 )
+                        {
+                            throw syntax_error( std::string("unexpected right parenthesis: "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
+                        }
+                            
+                        if ( m_operationStack.back() == &leftParen )
+                        {
+                            //output.push_back( std::move( opStack.back() ) );
+                            m_operationStack.pop_back();
+                            break;
+                        }
+                        
+                        m_exprOutput.push_back( std::move( m_operationStack.back() ) );
+                        m_operationStack.pop_back();
+                    }
+                    break;
+                }
+                case Comma:
+                {
+                    //TODO:
+                    assert(0);
+                    break;
+                }
+                case LeftSqBracket:
+                {
+                    //TODO:
+                    assert(0);
+                    break;
+                }
+                case RightSqBracket:
+                {
+                    //TODO:
+                    assert(0);
+                    break;
+                }
+                case Semicolon:
+                {
+                    while( m_operationStack.size() > 0 )
+                    {
+                        if ( m_operationStack.back() == &leftParen )
+                        {
+                            throw syntax_error( std::string("missing ')': "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
+                        }
+                        m_exprOutput.push_back( std::move( m_operationStack.back() ) );
+                        m_operationStack.pop_back();
+                    }
+                    
+                    if ( m_exprOutput.size() == 0 )
+                    {
+                        throw syntax_error( std::string("expected expression: "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
+                    }
+
+                    auto result = constructExpr();
+                    
+                    theEnd = true;
                     break;
                 }
                 default:
@@ -247,11 +352,82 @@ protected:
                     auto precedence = opratorTokenTable[m_tokenIt->type];
                     if ( precedence == 0 )
                     {
-                        throw syntax_error( std::string("unexpected token: ")+gTokenTypeStrings[m_tokenIt->type], m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
+                        theEnd = true;
+                        break;
+                    }
+                    
+                    while( m_operationStack.size() > 0 )
+                    {
+                        if ( opratorTokenTable[(m_operationStack.back())->m_token.type] <= precedence )
+                        {
+                            m_exprOutput.push_back( std::move( m_operationStack.back() ) );
+                            m_operationStack.pop_back();
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    if ( unariOpratorTokenTable[m_tokenIt->type] )
+                    {
+                        m_operationStack.push_back( new expr::UnaryOpExpression(*m_tokenIt) );
+                    }
+                    else
+                    {
+                        m_operationStack.push_back( new expr::BinaryOpExpression(*m_tokenIt) );
                     }
                 }
             }
         }
+    }
+    
+    expr::Expression* constructExpr()
+    {
+        if ( m_exprOutput.empty() )
+        {
+            return nullptr;
+        }
+        
+        auto* expr = m_exprOutput.back();
+        m_exprOutput.pop_back();
+        
+        LOG( "constructExpr: " << gTokenTypeStrings[expr->m_token.type] << " :" << m_exprOutput.size() )
+        
+        if ( m_exprOutput.size() == 0 )
+        {
+            LOG("");
+        }
+        
+        if ( unariOpratorTokenTable[expr->m_token.type] )
+        {
+            ((expr::UnaryExpression*)expr)->m_expr = constructExpr();
+            if ( ((expr::UnaryExpression*)expr)->m_expr == nullptr )
+            {
+                auto& token = expr->m_token;
+                throw syntax_error( std::string("expression syntax error: "), token.line, token.pos, token.endPos );
+            }
+        }
+        else if ( expr->m_token.type == Identifier || expr->m_token.type == Int || expr->m_token.type == Float )
+        {
+            return expr;
+        }
+        else
+        {
+            ((expr::BinaryOpExpression*)expr)->m_expr = constructExpr();
+            if ( ((expr::BinaryOpExpression*)expr)->m_expr == nullptr )
+            {
+                auto& token = expr->m_token;
+                throw syntax_error( std::string("expression syntax error: "), token.line, token.pos, token.endPos );
+            }
+            
+            ((expr::BinaryOpExpression*)expr)->m_expr2 = constructExpr();
+            if ( ((expr::BinaryOpExpression*)expr)->m_expr2 == nullptr )
+            {
+                auto& token = expr->m_token;
+                throw syntax_error( std::string("expression syntax error: "), token.line, token.pos, token.endPos );
+            }
+        }
+        return expr;
     }
     
     void parseFuncCall()
@@ -265,8 +441,8 @@ protected:
         // "var" <indentifier> [ "=" <expression> ]
         //
         nextToken( Identifier );
-        auto& varName = m_tokenIt->lexeme;
-        expr::ExpressionPtr expr = nullptr;
+        const Token& varName = *m_tokenIt;
+        expr::Expression* expr = nullptr;
         if ( nextTokenIs( Assignment ) )
         {
             // skip assignment
@@ -275,7 +451,7 @@ protected:
         }
         
         auto* varExpr = new expr::ExpressionVarDecl{varName};
-        varExpr->m_expr = std::move(expr);
+        varExpr->m_expr = expr;
     }
 
     void parseFuncDef()

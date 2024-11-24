@@ -189,6 +189,8 @@ public:
         m_ptr = m_text.data();
         m_endPtr = m_ptr + m_text.size();
         
+        addToken( TokenType::Begin );
+
         while( m_ptr < m_endPtr )
         {
             m_ptr++;
@@ -234,9 +236,9 @@ public:
                     {
                         addToken( TokenType::MinusEqual );
                     }
-                    else if ( ifNext('+') )
+                    else if ( ifNext('-') )
                     {
-                        int size = m_tokens.size();
+                        auto size = m_tokens.size();
                         if ( size > 0 && m_tokens[size-1].type == TokenType::Identifier )
                         {
                             addToken( TokenType::MinusMinusRight );
@@ -258,7 +260,7 @@ public:
                     }
                     else if ( ifNext('+') )
                     {
-                        int size = m_tokens.size();
+                        auto size = m_tokens.size();
                         if ( size > 0 && m_tokens[size-1].type == TokenType::Identifier )
                         {
                             addToken( TokenType::PlusPlusRight );
@@ -281,28 +283,28 @@ public:
                              ifNext('=') ? TokenType::StarEqual : TokenType::Star );
                     break;
                 case '/':
-                    addToken( ifNext('/') ? TokenType::DoubleSlash :
-                             ifNext('=') ? TokenType::SlashEqual : TokenType::Slash );
+                    addToken( ifNext('/') ? TokenType::Slash2 :
+                             ifNext('=') ? TokenType::SlashEqual : TokenType::BitAnd );
                     break;
                 case '%':
                     addToken( ifNext('=') ? TokenType::ModEqual : TokenType::Mod );
                     break;
                 case '|':
                     addToken( ifNext('=') ? TokenType::OrEqual :
-                             ifNext('&') ? TokenType::Or2 : TokenType::Or );
+                             ifNext('|') ? TokenType::Or : TokenType::BitOr );
                     break;
                 case '&':
                     addToken( ifNext('=') ? TokenType::AndEqual :
-                             ifNext('&') ? TokenType::Ampersand2 : TokenType::Ampersand );
+                             ifNext('&') ? TokenType::And : TokenType::BitAnd );
                     break;
                 case '^':
-                    addToken( ifNext('=') ? TokenType::XorEqual : TokenType::Caret );
+                    addToken( ifNext('=') ? TokenType::XorEqual : TokenType::Xor );
                     break;
                 case '~':
                     addToken( TokenType::Tilde );
                     break;
                 case '!':
-                    addToken( ifNext('=') ? TokenType::BangEqual : TokenType::Bang );
+                    addToken( ifNext('=') ? TokenType::NotEqual : TokenType::Not );
                     break;
                 case '=':
                     addToken( ifNext('=') ? TokenType::EqualEqual : TokenType::Assignment );
@@ -358,5 +360,6 @@ public:
                     break;
             }
         }
+        addToken( TokenType::EndOfFile );
     }
 };

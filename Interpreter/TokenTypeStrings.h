@@ -1,9 +1,9 @@
 #pragma once
-
 #include <string>
 
-inline constexpr const char* gTokenTypeStrings[] =
-{
+inline constexpr const char* gTokenTypeStrings[] = {
+"Begin",
+    
 "Class",
 "Var",
 "Print",
@@ -19,10 +19,10 @@ inline constexpr const char* gTokenTypeStrings[] =
 "True",
 "False",
 "None",
-"And",
-"Or",
-"Not",
-"Pass",
+"Nill",
+    
+
+
 "Plus",
 "PlusPlusRight",
 "PlusPlusLeft",
@@ -31,11 +31,11 @@ inline constexpr const char* gTokenTypeStrings[] =
 "MinusMinusLeft",
 "Star",
 "DoubleStar",
-"Slash",
-"DoubleSlash",
+"BitAnd",
+"And",
 "Mod",
+"BitOr",
 "Or",
-"Or2",
 "Caret",
 "Ampersand",
 "Ampersand2",
@@ -46,7 +46,7 @@ inline constexpr const char* gTokenTypeStrings[] =
 "LessEqual",
 "Greater",
 "GreaterEqual",
-"Equals",
+"Assignment",
 "EqualEqual",
 "Not",
 "NotEqual",
@@ -61,6 +61,8 @@ inline constexpr const char* gTokenTypeStrings[] =
 "LeftShiftEqual",
 "RightShiftEqual",
 "Dot",
+
+// Punctuators    
 "(",
 ")",
 "{",

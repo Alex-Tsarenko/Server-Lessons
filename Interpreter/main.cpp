@@ -13,9 +13,8 @@ const char * test = R"V0G0N(
 
 func test()
 {
-   var y = 0
-   var x = 1+2*(n^2)+--y
-   y = x+1
+   var x2 = (1+2)*(n<<2)+--y+0;
+   y = x+1;
 }
 
 func factorial( n: Int, m: Int )
