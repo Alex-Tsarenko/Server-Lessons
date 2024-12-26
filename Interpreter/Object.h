@@ -1,53 +1,141 @@
 #pragma once
 
 #include <string>
+#include <iostream>
 
-class ObjectBase
+struct runtime_ex : std::runtime_error
 {
-public:
-    virtual bool        boolValue() const = 0;
-    virtual int         intValue() const = 0;
-    virtual double      doubleValue() const = 0;
-    virtual std::string stringValue() const = 0;
-
-    virtual void        setBool( bool newValue ) = 0;
-    virtual void        setInt( int newValue ) = 0;
-    virtual bool        setDouble( double newValue ) = 0;
-    virtual bool        setString( const std::string& newValue ) = 0;
+    runtime_ex( const std::string& message ) : std::runtime_error(message) {}
 };
 
-class IntObject : public ObjectBase
+#define RUNTIME_EX throw runtime_ex( std::string("runtime exception: in ") + __func__ );
+#define RUNTIME_EX2(message) throw runtime_ex( message );
+
+enum ObjectType { ot_null, ot_bool, ot_int, ot_double, ot_string, };
+
+struct Object
 {
-    int m_value;
-
-protected:
-    bool        boolValue() const   { return m_value != 0; }
-    int         intValue() const    { return m_value; }
-    double      doubleValue() const { return static_cast<double>( m_value ); }
-    std::string stringValue() const { return std::to_string( m_value ); }
-
-    void        setBool( bool newValue )     { m_value = newValue ? -1 : 0; }
-    void        setInt( int newValue )       { m_value = newValue; }
+    ObjectType m_type;
+    union {
+        bool    m_boolValue;
+        int     m_intValue;
+        double  m_doubleValue;
+        std::string* m_stringValue;
+    };
     
-    bool        setDouble( double newValue )
+    Object()
     {
-        double intPart;
-        double fractPart = modf( newValue, &intPart );
-        if ( fractPart == 0 )
+        m_type = ot_null;
+        m_stringValue = nullptr;
+    }
+    ~Object()
+    {
+        if ( m_type == ot_string )
         {
-            m_value = (int) intPart;
-            return true;
+            delete m_stringValue;
         }
-        return false;
+    }
+
+    void toStream( std::ostream& stream )
+    {
+        switch( m_type )
+        {
+            case ot_null: stream << "<null>"; break;
+            case ot_bool: stream << m_boolValue; break;
+            case ot_int: stream << m_intValue; break;
+            case ot_double: stream << m_doubleValue; break;
+            case ot_string: stream << *m_stringValue; break;
+        }
     }
     
-    bool        setString( const std::string& newValue ) try
+    bool isNull() const { return m_type == ot_null; };
+    
+    bool boolValue() const
     {
-        m_value = std::stoi( newValue.c_str() );
-        return true;
+        if ( m_type == ot_bool )
+        {
+            return m_boolValue;
+        }
+        RUNTIME_EX;
+    };
+    
+    int intValue() const
+    {
+        if ( m_type == ot_int )
+        {
+            return m_intValue;
+        }
+        RUNTIME_EX;
+    };
+    
+    double doubleValue() const
+    {
+        if ( m_type == ot_int )
+        {
+            return m_intValue;
+        }
+        if ( m_type == ot_double )
+        {
+            return m_doubleValue;
+        }
+        RUNTIME_EX;
+    };
+
+    const std::string& stringValue() const
+    {
+        if ( m_type == ot_string )
+        {
+            return *m_stringValue;
+        }
+        RUNTIME_EX;
+    };
+
+
+    void setBool( bool newValue )
+    {
+        if ( m_type == ot_string )
+        {
+            delete m_stringValue;
+        }
+        m_type = ot_bool;
+        m_boolValue = newValue;
     }
-    catch (...)
+
+    void setInt( int newValue )
     {
-        return false;
+        if ( m_type == ot_string )
+        {
+            delete m_stringValue;
+        }
+        m_type = ot_int;
+        m_intValue = newValue;
+    }
+
+    void setDouble( int newValue )
+    {
+        if ( m_type == ot_string )
+        {
+            delete m_stringValue;
+        }
+        m_type = ot_double;
+        m_doubleValue = newValue;
+    }
+
+    void setString( const std::string& newValue )
+    {
+        if ( m_type == ot_string )
+        {
+            *m_stringValue = newValue;
+        }
+        else
+        {
+            m_type = ot_string;
+            m_stringValue = new std::string{newValue};
+        }
     }
 };
+
+
+#define gNullObject Object{}
+
+

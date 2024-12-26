@@ -9,8 +9,6 @@
 // Scanner
 class Lexer
 {
-    std::string m_text;
-    
     const char* m_ptr;
     const char* m_endPtr;
     int         m_line = 0;
@@ -21,14 +19,13 @@ class Lexer
     int m_isBlockLevel = 0;
     
 public:
-    Lexer( std::string&& text ) : m_text(text) {}
+    Lexer( const char* begin, const char* end ) : m_ptr(begin), m_endPtr(end) {}
 
     const std::vector<Token>& tokens() const { return m_tokens; }
 
-    void addToken( TokenType type )
+    void addToken( TokenType type, const std::string& lexeme )
     {
-        //LOG( "token: " << gTokenTypeStrings[type] );
-        m_tokens.push_back( Token{ type, "", m_line, m_pos } );
+        m_tokens.push_back( Token{ type, lexeme, m_line, m_pos } );
     }
     
     void addToken( Token&& token )
@@ -58,7 +55,27 @@ public:
     
     void handleStringLiteral( char delimiter )
     {
+        auto start = m_ptr;
+        auto startPos = m_pos;
+        m_ptr++;
+        m_pos++;
+        while( (m_ptr < m_endPtr) && (*m_ptr != delimiter) )
+        {
+            if ( *m_ptr == '\\' )
+            {
+                m_ptr++;
+                m_pos++;
+                if ( m_ptr == m_endPtr )
+                {
+                    throw std::runtime_error("Unexpected end of file." );
+                }
+            }
+            m_ptr++;
+            m_pos++;
+        }
         
+        addToken( Token{ TokenType::String, std::string(start+1,m_ptr), m_line, startPos, m_pos } );
+        LOG( "TokenType::String: <" << m_tokens.back().lexeme << ">")
     }
     
     void handleNumber( )
@@ -186,10 +203,7 @@ public:
 
     void run()
     {
-        m_ptr = m_text.data();
-        m_endPtr = m_ptr + m_text.size();
-        
-        addToken( TokenType::Begin );
+        addToken( TokenType::Begin, "<begin>" );
 
         while( m_ptr < m_endPtr )
         {
@@ -199,125 +213,205 @@ public:
             switch( *m_ptr )
             {
                 case 0:
-                    return;
+                    break;
                 case ':':
-                    addToken( TokenType::Colon );
+                    addToken( TokenType::Colon, ":" );
                     break;
                 case '(':
-                    addToken( TokenType::LeftParen );
+                    addToken( TokenType::LeftParen, "(" );
                     break;
                 case ')':
-                    addToken( TokenType::RightParen );
+                    addToken( TokenType::RightParen, ")" );
                     break;
                 case '{':
-                    addToken( TokenType::LeftBrace );
+                    addToken( TokenType::LeftBrace, "{" );
                     m_isBlockLevel++;
                     break;
                 case '}':
-                    addToken( TokenType::RightBrace );
+                    addToken( TokenType::RightBrace, "}" );
                     m_isBlockLevel--;
                     break;
                 case '[':
-                    addToken( TokenType::LeftSqBracket );
+                    addToken( TokenType::LeftSqBracket, "[" );
                     m_isBlockLevel++;
                     break;
                 case ']':
-                    addToken( TokenType::RightSqBracket );
+                    addToken( TokenType::RightSqBracket, "]" );
                     m_isBlockLevel--;
                     break;
                 case ',':
-                    addToken( TokenType::Comma );
+                    addToken( TokenType::Comma, "," );
                     break;
                 case '.':
-                    addToken( TokenType::Dot );
+                    addToken( TokenType::Dot, "." );
                     break;
                 case '-':
                     if ( ifNext('=') )
                     {
-                        addToken( TokenType::MinusEqual );
+                        addToken( TokenType::MinusEqual, "-=" );
                     }
                     else if ( ifNext('-') )
                     {
                         auto size = m_tokens.size();
                         if ( size > 0 && m_tokens[size-1].type == TokenType::Identifier )
                         {
-                            addToken( TokenType::MinusMinusRight );
+                            addToken( TokenType::MinusMinusRight, "--r" );
                         }
                         else
                         {
-                            addToken( TokenType::MinusMinusLeft );
+                            addToken( TokenType::MinusMinusLeft, "--l" );
                         }
                     }
                     else
                     {
-                        addToken( TokenType::Minus );
+                        addToken( TokenType::Minus, "-" );
                     }
                     break;
                 case '+':
                     if ( ifNext('=') )
                     {
-                        addToken( TokenType::PlusEqual );
+                        addToken( TokenType::PlusEqual, "=" );
                     }
                     else if ( ifNext('+') )
                     {
                         auto size = m_tokens.size();
                         if ( size > 0 && m_tokens[size-1].type == TokenType::Identifier )
                         {
-                            addToken( TokenType::PlusPlusRight );
+                            addToken( TokenType::PlusPlusRight, "++r" );
                         }
                         else
                         {
-                            addToken( TokenType::PlusPlusLeft );
+                            addToken( TokenType::PlusPlusLeft, "++l" );
                         }
                     }
                     else
                     {
-                        addToken( TokenType::Plus );
+                        addToken( TokenType::Plus, "+" );
                     }
                     break;
                 case ';':
-                    addToken( TokenType::Semicolon );
+                    addToken( TokenType::Semicolon, ";" );
                     break;
                 case '*':
-                    addToken( ifNext('*') ? TokenType::DoubleStar :
-                             ifNext('=') ? TokenType::StarEqual : TokenType::Star );
+                    if ( ifNext('*') )
+                    {
+                        addToken(  TokenType::DoubleStar, "**" );
+                    }
+                    else if ( ifNext('=') )
+                    {
+                        addToken( TokenType::StarEqual, "*=" );
+                    }
+                    else
+                    {
+                        addToken( TokenType::Star, "*" );
+                    }
                     break;
                 case '/':
-                    addToken( ifNext('/') ? TokenType::Slash2 :
-                             ifNext('=') ? TokenType::SlashEqual : TokenType::BitAnd );
+                    if ( ifNext('/') )
+                    {
+                        addToken(  TokenType::Slash2, "//" );
+                    }
+                    else if ( ifNext('=') )
+                    {
+                        addToken( TokenType::SlashEqual, "/=" );
+                    }
+                    else
+                    {
+                        addToken( TokenType::Slash, "/" );
+                    }
                     break;
                 case '%':
-                    addToken( ifNext('=') ? TokenType::ModEqual : TokenType::Mod );
+                    if ( ifNext('=') )
+                    {
+                        addToken(  TokenType::ModEqual, "%=" );
+                    }
+                    else
+                    {
+                        addToken( TokenType::Mod, "%" );
+                    }
                     break;
                 case '|':
                     addToken( ifNext('=') ? TokenType::OrEqual :
-                             ifNext('|') ? TokenType::Or : TokenType::BitOr );
+                             ifNext('|') ? TokenType::Or : TokenType::BitOr, "<todo|>" );
                     break;
                 case '&':
                     addToken( ifNext('=') ? TokenType::AndEqual :
-                             ifNext('&') ? TokenType::And : TokenType::BitAnd );
+                             ifNext('&') ? TokenType::And : TokenType::BitAnd, "<todo&>" );
                     break;
                 case '^':
-                    addToken( ifNext('=') ? TokenType::XorEqual : TokenType::Xor );
+                    if ( ifNext('=') )
+                    {
+                        addToken(  TokenType::XorEqual, "^=" );
+                    }
+                    else
+                    {
+                        addToken( TokenType::Xor, "^" );
+                    }
                     break;
                 case '~':
-                    addToken( TokenType::Tilde );
+                    addToken( TokenType::Tilde, "~" );
                     break;
                 case '!':
-                    addToken( ifNext('=') ? TokenType::NotEqual : TokenType::Not );
+                    if ( ifNext('=') )
+                    {
+                        addToken(  TokenType::NotEqual, "!=" );
+                    }
+                    else
+                    {
+                        addToken( TokenType::Not, "!" );
+                    }
                     break;
                 case '=':
-                    addToken( ifNext('=') ? TokenType::EqualEqual : TokenType::Assignment );
+                    if ( ifNext('=') )
+                    {
+                        addToken(  TokenType::EqualEqual, "==" );
+                    }
+                    else
+                    {
+                        addToken( TokenType::Assignment, "=" );
+                    }
                     break;
                 case '<':
-                    addToken( ifNext('<') ?
-                                (ifNext('=') ? TokenType::LeftShiftEqual : TokenType::LeftShift) :
-                             ifNext('=') ? TokenType::LessEqual : TokenType::Less );
+                    if ( ifNext('<') )
+                    {
+                        if ( ifNext('=') )
+                        {
+                            addToken( TokenType::LeftShiftEqual, "<<=" );
+                        }
+                        else
+                        {
+                            addToken(  TokenType::LeftShift, "<<" );
+                        }
+                    }
+                    else if ( ifNext('=') )
+                    {
+                        addToken( TokenType::LessEqual, "<=" );
+                    }
+                    else
+                    {
+                        addToken( TokenType::Less, "<" );
+                    }
                     break;
                 case '>':
-                    addToken( ifNext('>') ?
-                                (ifNext('=') ? TokenType::RightShiftEqual : TokenType::RightShift) :
-                             ifNext('=') ? TokenType::GreaterEqual : TokenType::Greater );
+                    if ( ifNext('>') )
+                    {
+                        if ( ifNext('=') )
+                        {
+                            addToken( TokenType::RightShiftEqual, ">>=" );
+                        }
+                        else
+                        {
+                            addToken(  TokenType::RightShift, ">>" );
+                        }
+                    }
+                    else if ( ifNext('=') )
+                    {
+                        addToken( TokenType::GreaterEqual, ">=" );
+                    }
+                    else
+                    {
+                        addToken( TokenType::Greater, ">" );
+                    }
                     break;
                  case '#':
                     for( m_ptr++; (m_ptr < m_endPtr) && (*m_ptr != '\n'); m_ptr++ )
@@ -335,7 +429,7 @@ public:
                 case '\r':
                     m_line++;
                     m_pos = -1;
-                    addToken( TokenType::Newline );
+                    addToken( TokenType::Newline, "\n" );
                     handleIndentation( );
                     break;
 
@@ -360,6 +454,6 @@ public:
                     break;
             }
         }
-        addToken( TokenType::EndOfFile );
+        addToken( TokenType::EndOfFile, "<eof>" );
     }
 };

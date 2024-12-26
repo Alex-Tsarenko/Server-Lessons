@@ -12,10 +12,13 @@ add_definitions(-DDEBUG)
 add_executable(Interpreter
   main.cpp
 
-  Lexer.h
+  Runtime.h
+  Runtime.cpp
   Expr.h
-  Parser.h
+  Lexer.h
+  Logs.h
   Object.h
+  Parser.h
   Token.h
   TokenType.h
   TokenTypeStrings.h
