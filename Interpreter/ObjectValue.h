@@ -8,27 +8,37 @@ struct runtime_ex : std::runtime_error
     runtime_ex( const std::string& message ) : std::runtime_error(message) {}
 };
 
+struct Token;
+struct runtime_ex3 : std::runtime_error
+{
+    const Token& m_token;
+    runtime_ex3( const std::string& message, const Token& tokenRef ) : std::runtime_error(message), m_token(tokenRef) {}
+};
+
 #define RUNTIME_EX throw runtime_ex( std::string("runtime exception: in ") + __func__ );
 #define RUNTIME_EX2(message) throw runtime_ex( message );
+#define RUNTIME_EX3(message,token) throw runtime_ex3( message,token );
 
-enum ObjectType { ot_null, ot_bool, ot_int, ot_double, ot_string, };
+enum ObjectType : uint8_t { ot_null, ot_bool, ot_int, ot_double, ot_string };
 
-struct Object
+struct ObjectValue
 {
     ObjectType m_type;
+    uint8_t    m_isReturned = 0;
+    
     union {
-        bool    m_boolValue;
-        int     m_intValue;
-        double  m_doubleValue;
+        bool        m_boolValue;
+        uint64_t    m_intValue;
+        double      m_doubleValue;
         std::string* m_stringValue;
     };
     
-    Object()
+    ObjectValue()
     {
         m_type = ot_null;
         m_stringValue = nullptr;
     }
-    ~Object()
+    ~ObjectValue()
     {
         if ( m_type == ot_string )
         {
@@ -59,7 +69,7 @@ struct Object
         RUNTIME_EX;
     };
     
-    int intValue() const
+    uint64_t intValue() const
     {
         if ( m_type == ot_int )
         {
@@ -136,6 +146,6 @@ struct Object
 };
 
 
-#define gNullObject Object{}
+#define gNullObject ObjectValue{}
 
 

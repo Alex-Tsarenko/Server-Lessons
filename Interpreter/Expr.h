@@ -3,7 +3,7 @@
 #include <forward_list>
 #include <list>
 #include <vector>
-#include "Object.h"
+#include "ObjectValue.h"
 
 #include "Token.h"
 #include "Runtime.h"
@@ -58,7 +58,7 @@ inline std::string getLine( const char* text, int lineNumber )
 
 namespace expr {
 
-inline const Token& nilToken{ EndOfTokenType, "EndOfTokenType" };
+inline const Token& nilToken{ NilToken, "NilToken" };
 
 enum ExpressionType
 {
@@ -69,7 +69,8 @@ enum ExpressionType
     et_float,
     et_string,
     et_func_call,
-    
+    et_return,
+
     et_undefined
 };
 
@@ -98,14 +99,14 @@ struct Expression
         LOG("<Expression evaluate: NIL>");
     }
     
-    virtual Object execute( Runtime& ) = 0;
+    virtual ObjectValue execute( Runtime& ) = 0;
 };
 
 struct HelpExpression: Expression
 {
     HelpExpression( const Token& token ) : Expression(token) {};
 
-    Object execute( Runtime& ) override { return gNullObject; }
+    ObjectValue execute( Runtime& ) override { return gNullObject; }
 };
 
 inline int gEvaluateOffset = 0;
@@ -171,13 +172,18 @@ struct ExpressionList: public Expression
 {
     std::list<Expression*>  m_list;
     
-    virtual Object execute( Runtime& runtime ) override
+    virtual ObjectValue execute( Runtime& runtime ) override
     {
-        for( auto* expr: m_list )
+        ObjectValue result;
+        for( auto& statement: m_list )
         {
-            expr->execute( runtime );
+            result = statement->execute( runtime );
+            if ( result.m_isReturned )
+            {
+                return result;
+            }
         }
-        return gNullObject;
+        return result;
     }
 };
 
@@ -191,11 +197,12 @@ struct PrintFuncCall: public Expression
     }
     std::vector<Expression*>  m_list;
     
-    virtual Object execute( Runtime& runtime ) override
+    virtual ObjectValue execute( Runtime& runtime ) override
     {
         for( auto* expr: m_list )
         {
-            Object value = expr->execute( runtime );
+            LOG("PrintFunc item: " << (void*)expr )
+            ObjectValue value = expr->execute( runtime );
             value.toStream( std::cout );
         }
         
@@ -210,7 +217,7 @@ struct PrintFuncCall: public Expression
 // Unary expression with unary operator
 struct UnaryExpression: public Expression
 {
-    enum Operator { plus, minus, negation, star, ampersand };
+    enum Operator { plus, minus, negotiaton, star, ampersand };
     
     virtual enum ExpressionType type() override { return et_unary; }
 
@@ -230,12 +237,73 @@ struct UnaryExpression: public Expression
         m_expr->evaluate2();
         LOGX( ")");
     }
+    
+    ObjectValue execute( Runtime& runtime ) override
+    {
+        ObjectValue value = m_expr->execute( runtime );
+        
+        switch (m_op) {
+            case plus:
+                break;
+            case minus:
+                if ( value.m_type == ot_int )
+                {
+                    value.m_intValue = -value.m_intValue;
+                    break;
+                }
+                else if ( value.m_type == ot_double )
+                {
+                    value.m_doubleValue = -value.m_doubleValue;
+                    break;
+                }
+                else if ( value.m_type == ot_bool )
+                {
+                    RUNTIME_EX3( "Cannot apply '-' to bool value: ", m_token );
+                }
+                else if ( value.m_type == ot_string )
+                {
+                    RUNTIME_EX3( "Cannot apply '-' to string value: ", m_token );
+                }
+            case negotiaton:
+                if ( value.m_type == ot_bool )
+                {
+                    value.m_boolValue = -value.m_boolValue;
+                    break;
+                }
+                else if ( value.m_type == ot_int )
+                {
+                    RUNTIME_EX3( "Cannot apply '!' to int value: ", m_token );
+                }
+                else if ( value.m_type == ot_double )
+                {
+                    RUNTIME_EX3( "Cannot apply '!' to double value: ", m_token );
+                }
+                else if ( value.m_type == ot_string )
+                {
+                    RUNTIME_EX3( "Cannot apply '-' to string value: ", m_token );
+                }
+                else if ( value.m_type == ot_null )
+                {
+                    RUNTIME_EX3( "Cannot apply '-' to null: ", m_token );
+                }
+            case star:
+                RUNTIME_EX3( "'*' not supported: ", m_token );
+            case ampersand:
+                RUNTIME_EX3( "'&' not supported: ", m_token );
+
+            default:
+                break;
+        }
+        return value;
+    }
 };
 
 // Binary expression with unary operator
 struct BinaryOpExpression: public Expression
 {
-    BinaryOpExpression( const Token& token ) : Expression(token) {}
+    BinaryOpExpression( const Token& token ) : Expression(token)
+    {
+    }
     Expression*  m_expr  = nullptr;
     Expression*  m_expr2 = nullptr;
     
@@ -257,6 +325,80 @@ struct BinaryOpExpression: public Expression
         LOGX( ")");
     }
 
+    ObjectValue execute( Runtime& runtime ) override
+    {
+        ObjectValue value1 = m_expr->execute( runtime );
+        if ( value1.isNull() )
+        {
+            if ( m_expr->type() == et_identifier )
+            {
+                RUNTIME_EX3( "undefined variable: ", m_expr->m_token )
+            }
+            RUNTIME_EX3( "unexpected null value: ", m_expr->m_token )
+        }
+
+        ObjectValue value2 = m_expr2->execute( runtime );
+        if ( value2.isNull() )
+        {
+            if ( m_expr2->type() == et_identifier )
+            {
+                RUNTIME_EX3( "undefined variable: ", m_expr2->m_token )
+            }
+            RUNTIME_EX3( "unexpected null value: ", m_expr2->m_token )
+        }
+
+        if ( value1.m_type == ot_int && value2.m_type == ot_int )
+        {
+#define RETURN_INT_VALUE_OF(sign) \
+    ObjectValue value;\
+    value.m_type = ot_int;\
+    value.m_intValue = value1.m_intValue sign value2.m_intValue;\
+    return value;
+
+            if ( m_token.type == Plus )
+            {
+                RETURN_INT_VALUE_OF(+)
+            }
+            if ( m_token.type == Minus )
+            {
+                RETURN_INT_VALUE_OF(-)
+            }
+            if ( m_token.type == Slash )
+            {
+                RETURN_INT_VALUE_OF(/)
+            }
+            if ( m_token.type == Star )
+            {
+                RETURN_INT_VALUE_OF(*)
+            }
+        }
+        if ( (value1.m_type == ot_int || value1.m_type == ot_double) || (value2.m_type == ot_int || value2.m_type == ot_double) )
+        {
+#define RETURN_DOUBLE_VALUE_OF(sign) \
+    ObjectValue value;\
+    value.m_type = ot_double;\
+    value.m_doubleValue = value1.doubleValue() sign value2.doubleValue();\
+    return value;
+
+            if ( m_token.type == Plus )
+            {
+                RETURN_DOUBLE_VALUE_OF(+)
+            }
+            if ( m_token.type == Minus )
+            {
+                RETURN_DOUBLE_VALUE_OF(-)
+            }
+            if ( m_token.type == Slash )
+            {
+                RETURN_DOUBLE_VALUE_OF(/)
+            }
+            if ( m_token.type == Star )
+            {
+                RETURN_DOUBLE_VALUE_OF(*)
+            }
+        }
+        LOG( "????");
+    }
 };
 
 struct ExpressionVarDecl: public Expression
@@ -266,53 +408,41 @@ struct ExpressionVarDecl: public Expression
     std::string   m_identifierName;
     Expression*   m_initValue;
     //TODO: Value
-};
-
-
-// Binary expression with unary operator
-struct FunctionCall: public Expression
-{
-    FunctionCall( const Token& token ) : Expression(token), m_functionName(token.lexeme) {}
     
-    virtual enum ExpressionType type() override { return et_func_call; }
-    
-    std::string                 m_functionName;
-    std::vector<Expression*>    m_parameters;
-    
-    virtual void evaluate2() override
+    ObjectValue execute( Runtime& runtime ) override
     {
-        LOGX( m_token.lexeme << "(" );
-        for( auto& parameter: m_parameters )
+        if ( m_initValue != nullptr )
         {
-            LOGX( " ");
-            parameter->evaluate2();
-            LOGX( ",");
+            if (m_identifierName=="dbg")
+            {
+                LOG("dbg");
+            }
+            ObjectValue value = m_initValue->execute(runtime);
+            
+            if ( runtime.m_localVarStack.empty() )
+            {
+                runtime.m_globalVarMap[m_identifierName] = value;
+            }
+            else
+            {
+                runtime.m_localVarStack.back()[m_identifierName] = value;
+            }
+
+            return value;
         }
-        LOGX( ")");
-    }
-    
-    Object execute( Runtime& runtime ) override
-    {
-        if ( auto it = runtime.m_funcMap.find( m_functionName ); it == runtime.m_funcMap.end() )
+        
+
+        if ( runtime.m_localVarStack.empty() )
         {
-            RUNTIME_EX2( std::string("Undefined function: ") + m_functionName );
+            runtime.m_globalVarMap[m_identifierName] = gNullObject;
         }
         else
         {
-            auto paramIt = m_parameters.begin();
-            FuncDefinition* f = it->second;
-            for( const auto& arg: f.m_argList )
-            {
-                if ( paramIt != m_parameters.end() )
-                {
-                    paramValue = paramIt->execute( runtime );
-                    arg.m_name;
-                    //...
-                }
-            }
-            //m_parameters
+            runtime.m_localVarStack.back()[m_identifierName] = gNullObject;
         }
+        return gNullObject;
     }
+    
 
 };
 
@@ -341,6 +471,27 @@ struct Identifier : public Expression
     {
         LOGX( "'" << m_token.lexeme );
     }
+    
+    ObjectValue execute( Runtime& runtime ) override
+    {
+        LOG( "execute var: " << m_name )
+        for( auto localVarMapIt = runtime.m_localVarStack.rbegin();
+             localVarMapIt != runtime.m_localVarStack.rend();
+             localVarMapIt++ )
+        {
+            if ( auto it = localVarMapIt->find(m_name); it != localVarMapIt->end() )
+            {
+                return it->second;
+            }
+        }
+        
+        if ( auto it = runtime.m_globalVarMap.find(m_name); it != runtime.m_globalVarMap.end() )
+        {
+            return it->second;
+        }
+        
+        return gNullObject;
+    }
 
 };
 
@@ -364,6 +515,14 @@ struct IntNumber : public Expression
     {
         LOGX( m_value );
     }
+    
+    ObjectValue execute( Runtime& ) override
+    {
+        ObjectValue value;
+        value.m_type = ot_int;
+        value.m_intValue = m_value;
+        return value;
+    }
 };
 
 struct FloatNumber : public Expression
@@ -376,7 +535,7 @@ struct FloatNumber : public Expression
     }
     
     virtual enum ExpressionType type() override { return et_float; }
-
+    
     virtual void evaluate() override
     {
         evalPrint( m_value );
@@ -385,6 +544,14 @@ struct FloatNumber : public Expression
     virtual void evaluate2() override
     {
         LOGX( m_value );
+    }
+    
+    ObjectValue execute( Runtime& ) override
+    {
+        ObjectValue value;
+        value.m_type = ot_double;
+        value.m_doubleValue = m_value;
+        return value;
     }
 };
 
@@ -413,6 +580,15 @@ struct String : public Expression
     {
         LOGX( m_value );
     }
+    
+    ObjectValue execute( Runtime& ) override
+    {
+        ObjectValue value;
+        value.m_type = ot_string;
+        value.m_stringValue = new std::string{ m_value };
+        return value;
+    }
+
 };
 
 struct FuncDefinition : public Expression
@@ -421,17 +597,77 @@ struct FuncDefinition : public Expression
     std::vector<Argument>   m_argList;
     ExpressionList          m_body;
     
-    Object execute( Runtime& runtime ) override
+    ObjectValue execute( Runtime& runtime ) override
     {
-        auto result = runtime.m_funcMap.emplace({m_functionName, this});
+        auto result = runtime.m_funcMap.emplace( m_name, this);
         if ( result.second )
         {
+            // we added function
             return gNullObject;
         }
 
         // Insertion failed, meaning m_functionName already exists
-        RUNTIME_EX2( std::string("Double function declaration: ") + m_functionName );
+        RUNTIME_EX2( std::string("Double function declaration: ") + m_name );
     }
+};
+
+// Binary expression with unary operator
+struct FunctionCall: public Expression
+{
+    FunctionCall( const Token& token ) : Expression(token), m_functionName(token.lexeme) {}
+    
+    virtual enum ExpressionType type() override { return et_func_call; }
+    
+    std::string                 m_functionName;
+    std::vector<Expression*>    m_parameters;
+    
+    virtual void evaluate2() override
+    {
+        LOGX( m_token.lexeme << "(" );
+        for( auto& parameter: m_parameters )
+        {
+            LOGX( " ");
+            parameter->evaluate2();
+            LOGX( ",");
+        }
+        LOGX( ")");
+    }
+    
+    ObjectValue execute( Runtime& runtime ) override
+    {
+        LOG("execute function: " << m_functionName )
+        if ( auto it = runtime.m_funcMap.find( m_functionName ); it == runtime.m_funcMap.end() )
+        {
+            RUNTIME_EX2( std::string("Undefined function: ") + m_functionName );
+        }
+        else
+        {
+            runtime.m_localVarStack.push_back({});
+
+            auto paramIt = m_parameters.begin();
+            FuncDefinition* fDefinition = it->second;
+            for( const auto& arg: fDefinition->m_argList )
+            {
+                if ( paramIt != m_parameters.end() )
+                {
+                    ObjectValue paramValue = (*paramIt)->execute( runtime );
+                    auto result = runtime.m_localVarStack.back().emplace( arg.m_name, paramValue );
+                    paramIt++;
+                }
+                else
+                {
+                    auto result = runtime.m_localVarStack.back().emplace( arg.m_name, ObjectValue{} );
+                }
+            }
+
+            auto result = fDefinition->m_body.execute( runtime );
+            result.m_isReturned = 0;
+
+            runtime.m_localVarStack.pop_back();
+            return result;
+        }
+    }
+
 };
 
 struct If : public Expression
@@ -458,6 +694,19 @@ struct For : public Expression
 struct Return : public Expression
 {
     Expression*     m_returnValue;
+    
+    Return( Expression* returnValue ) : m_returnValue(returnValue) {}
+    
+    ObjectValue execute( Runtime& runtime ) override
+    {
+        if ( m_returnValue != nullptr )
+        {
+            auto returnValue = m_returnValue->execute( runtime );
+            returnValue.m_isReturned = 0xff;
+            return returnValue;
+        }
+        return gNullObject;
+    }
 };
 
 struct Print : public Expression

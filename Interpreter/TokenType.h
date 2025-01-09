@@ -82,5 +82,6 @@ enum TokenType
     
     // Others
     Error,
+    NilToken,
     EndOfTokenType,
 };

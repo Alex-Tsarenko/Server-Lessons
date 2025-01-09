@@ -33,27 +33,35 @@ const char * test = R"V0G0N(
 
 func f0()
 {
-    return 10;
+    return 0;
 }
+
+var a0=f0();
 
 func f1( a:Int )
 {
-    return a*10;
+print( "###f1()->\(a0+a)" );
+    return a0+a;
 }
 
-func f2( a1:Int, a2:Int )
-{
-    return a1-a2;
-}
+var dbg=f1(1);
 
-func f3( a1:Int, a2:Int, a3:Int )
-{
-    return a1+a2+a3;
-}
-
-var x1 = f3( (0), 1+f1( f0()+(2) ), f2(f1(3),f1(4))+5);
-
-print( "x1=\(x1);" );
+//func f2( a1:Int, a2:Int )
+//{
+//    var z=1;
+//print( "###f2()->\(a1-a2+z)" );
+//    return a1-a2+z;
+//}
+//
+//func f3( a1:Int, a2:Int, a3:Int )
+//{
+//print( "###f3()->\(a1+a2+a3)" );
+//    return a1+a2+a3;
+//}
+//
+//var x1 = f3( (0), 1+f1( f0()+(2) ), f2(f1(3),f1(4))+5);
+//
+//print( "x1=\(x1);" );
 
 )V0G0N";
 
@@ -77,7 +85,7 @@ int main()
     parser.parseProgram( testStr.data(), lexer.tokens() );
     
     std::vector<expr::Expression*> program = std::move(parser.m_program);
-    runtime.run( program );
+    runtime.run( program, testStr );
 
     return 0;
 }

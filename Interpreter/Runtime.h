@@ -12,23 +12,18 @@ namespace expr
     struct Expression;
 }
 
-f2(x)
-{
-    
-}
-f1( x)
-{
-    f2(10)
-}
+struct ObjectValue;
 
 struct Runtime
 {
     Runtime() {}
     
-    std::map<std::string,expr::FuncDefinition*>     m_funcMap;
-    std::map<std::string,Object>                    m_varMap;
+    std::map<std::string,expr::FuncDefinition*>         m_funcMap;
+    std::map<std::string,ObjectValue>                   m_globalVarMap;
     
-    std::stack< std::map<std::string,Object> >      m_localVarStack;
+    using LocalVarStack = std::vector< std::map<std::string,ObjectValue> >;
     
-    void run( const std::vector<expr::Expression*>& code );
+    LocalVarStack                           m_localVarStack;
+
+    void run( const std::vector<expr::Expression*>& code, const std::string& sourceCode );
 };

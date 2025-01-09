@@ -49,11 +49,21 @@ struct Parser
     expr::HelpExpression leftFuncParen{ *new Token{LeftParen,"f("}};
     expr::HelpExpression rightParen{ *new Token{RightParen,")"}};;
     
+    std::vector<Lexer*> m_nestedLexers;
+    
 public:
     Parser( Runtime& runtime ) : m_runtime(runtime)
     {
     }
-    
+
+    ~Parser( Runtime& runtime ) : m_runtime(runtime)
+    {
+        for( auto* lexer: m_nestedLexers )
+        {
+            delete lexer;
+        }
+    }
+
     void onError( std::string errorText, int line, int pos ) {}
 
     expr::Expression* parsePrintExpr( const char* exprString, const std::vector<Token>& tokens )
@@ -65,11 +75,10 @@ public:
         
         assert( tokens.size() > 0 );
         assert( tokenIs(Begin) );
-        nextToken();
 
         try
         {
-            return parseStatement();
+            return parseExpr( RightParen );
         }
         catch( syntax_error& error )
         {
@@ -278,7 +287,7 @@ protected:
             }
         }
         
-        auto result = constructExpr();
+        auto* result = constructExpr();
         
         result->evaluate2();
         return result;
@@ -303,7 +312,7 @@ protected:
         m_operationStack.pop_back();
     }
     
-    void doParseExpr( TokenType endToken )
+    void doParseExpr( TokenType endTokenType )
     {
         // https://en.cppreference.com/w/cpp/language/operator_precedence
         
@@ -446,10 +455,14 @@ protected:
                 }
                 case RightParen:
                 {
+                    if ( m_operationStack.empty() && endTokenType==RightParen )
+                    {
+                        return;
+                    }
+
                     // handle 'function call' w/o arguments
                     if ( m_operationStack.back()->type() == expr::et_func_call && prevTokenIs(LeftParen) )
                     {
-                        moveOpToOutput();
                         break;
                     }
                     
@@ -457,8 +470,9 @@ protected:
                     {
                         if ( m_operationStack.size() == 0 )
                         {
-                            if ( endToken == RightParen )
+                            if ( endTokenType == RightParen )
                             {
+                                //TODO ???
                                 while( m_operationStack.size() > 0 )
                                 {
                                     moveOpToOutput();
@@ -663,13 +677,11 @@ protected:
         auto* varExpr = new expr::ExpressionVarDecl{varName};
         varExpr->m_initValue = expr;
         
-        if ( auto it = m_runtime.m_varMap.find(varName.lexeme); it != m_runtime.m_varMap.end() )
+        if ( auto it = m_runtime.m_globalVarMap.find(varName.lexeme); it != m_runtime.m_globalVarMap.end() )
         {
             throw syntax_error( std::string("function with same name already exist: "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
         }
         
-        m_runtime.m_varMap[varName.lexeme] = varExpr;
-
         nextToken();
         
         return varExpr;
@@ -696,9 +708,10 @@ protected:
     
     expr::Expression* parseReturn()
     {
-        auto* expr = parseExpr( Semicolon );
+        auto* returnValue = parseExpr( Semicolon );
+        assert( m_tokenIt->type==Semicolon );
         nextToken();
-        return expr;
+        return new expr::Return{ returnValue };// expr;
     }
     
     std::vector<expr::Expression*> parsePrintArgument( const std::string& printString, const Token& printStringToken )
@@ -748,11 +761,20 @@ protected:
 //                    std::string exprString(exprBegin,ptr);
 //                    LOG( "exprString: " << exprString << " " << ptr-exprBegin);
                     
-                    Lexer exprLexer( exprBegin, ptr );
+                    Lexer& exprLexer = * new Lexer{ exprBegin-1, ptr };
+                    m_nestedLexers.push_back(&exprLexer);
+                    
                     exprLexer.run();
                     Parser parser(m_runtime);
                     
-                    result.push_back( parser.parsePrintExpr( exprBegin, exprLexer.tokens() ));
+                    LOG("----ParsePrintArgument: " << std::string(exprBegin, ptr) );
+//                    for( auto& token: exprLexer.tokens() )
+//                    {
+//                        LOG("----Parse token: " << token.lexeme );
+//                    }
+                    auto* expression = parser.parsePrintExpr( exprBegin-1, exprLexer.tokens() );
+                    LOG("--- expression: " << (void*)expression );
+                    result.push_back( expression );
                     startOfLiteral = ptr+1;
                 }
             }
@@ -781,7 +803,7 @@ protected:
             throw syntax_error( std::string("function with same name already exist: "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
         }
         
-        m_runtime.m_funcMap[func->m_name] = func;
+        //m_runtime.m_funcMap[func->m_name] = func;
         
         nextToken( LeftParen );
         nextToken();
