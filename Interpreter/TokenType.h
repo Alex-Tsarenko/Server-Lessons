@@ -5,7 +5,7 @@ enum TokenType
     Begin,
 
     // Keywords
-    Class,
+    ClassT,
     Var,
     Print, 
     Func,
@@ -32,7 +32,7 @@ enum TokenType
     Star, 
     DoubleStar,
     Slash, 
-    Slash2,
+    Comment,
     Mod,
     BitOr, 
     Or,
@@ -78,7 +78,7 @@ enum TokenType
     EndOfFile,
     
     // Identifiers and literals
-    Int, Float, Identifier, String,
+    Int, Float, Identifier, StringLiteral,
     
     // Others
     Error,

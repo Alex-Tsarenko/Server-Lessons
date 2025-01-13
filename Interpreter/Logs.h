@@ -5,19 +5,21 @@
 inline std::mutex gLogMutex;
 
 #ifndef LOG
-    #define LOG( expr ) \
-    {\
-        std::lock_guard<std::mutex> lock(gLogMutex);\
-        std::cout << expr << std::endl << std::flush; \
-    }
+    #define LOG( expr ) {}
+//    #define LOG( expr ) \
+//    {\
+//        std::lock_guard<std::mutex> lock(gLogMutex);\
+//        std::cout << expr << std::endl << std::flush; \
+//    }
 #endif
 
 #ifndef LOGX
-    #define LOGX( expr ) \
-    {\
-        std::lock_guard<std::mutex> lock(gLogMutex);\
-        std::cout << expr << std::flush; \
-    }
+#define LOGX( expr ) {}
+//    #define LOGX( expr ) \
+//    {\
+//        std::lock_guard<std::mutex> lock(gLogMutex);\
+//        std::cout << expr << std::flush; \
+//    }
 #endif
 
 #ifndef LOG_ERR

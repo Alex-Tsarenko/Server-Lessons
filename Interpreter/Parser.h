@@ -56,7 +56,7 @@ public:
     {
     }
 
-    ~Parser( Runtime& runtime ) : m_runtime(runtime)
+    ~Parser()
     {
         for( auto* lexer: m_nestedLexers )
         {
@@ -109,12 +109,14 @@ public:
 
         try
         {
-            for( const auto& it : tokens )
+            for(;;)
             {
+                skipNewLines();
                 if ( isEof() )
                 {
                     break;
                 }
+                //LOG("+it::: " << gTokenTypeStrings[m_tokenIt->type] )
                 m_current->push_back( parseStatement() );
             }
         }
@@ -172,6 +174,9 @@ protected:
             case Print:
                 exprList->m_list.push_back(  parsePrint() );
                 break;
+            case ClassT:
+                exprList->m_list.push_back(  parseClass() );
+                break;
 
             case RightBrace:
                 if ( m_blockLevel == 0 )
@@ -180,6 +185,11 @@ protected:
                 }
                 m_tokenIt--;
                 break;
+
+            case Comment:
+                m_tokenIt++;
+                break;
+
 
             default:
                 break;
@@ -262,7 +272,7 @@ protected:
         {
             case Int:
             case Float:
-            case String:
+            case StringLiteral:
                 break;
                 
             default:
@@ -279,11 +289,11 @@ protected:
         {
             if ( m_output[i]->type() == expr::et_func_call )
             {
-                printf( "### func_call %s(%zu)\n", m_output[i]->m_token.lexeme.c_str(), ((expr::FunctionCall*)m_output[i])->m_parameters.size() );
+                LOG( "### func_call: " << m_output[i]->m_token.lexeme << ": " << ((expr::FunctionCall*)m_output[i])->m_parameters.size() );
             }
             else
             {
-                printf( "### %d %s\n", m_output[i]->m_token.type, m_output[i]->m_token.lexeme.c_str() );
+                LOG( "### dbg: " <<  m_output[i]->m_token.type << " " << m_output[i]->m_token.lexeme.c_str() );
             }
         }
         
@@ -429,7 +439,7 @@ protected:
                     m_output.push_back( new expr::FloatNumber{ *m_tokenIt } );
                     break;
                 }
-                case String:
+                case StringLiteral:
                 {
                     LOG( "@@@ Float to output: " << m_tokenIt->lexeme )
                     m_output.push_back( new expr::String{ *m_tokenIt } );
@@ -690,7 +700,7 @@ protected:
     expr::Expression* parsePrint()
     {
         nextToken( LeftParen );
-        nextToken( String );
+        nextToken( StringLiteral );
         
         auto& argument = m_tokenIt->lexeme;
         
@@ -704,6 +714,37 @@ protected:
         nextToken();
 
         return new expr::PrintFuncCall{ std::move(arguments) };
+    }
+    
+    expr::Expression* parseClass()
+    {
+        nextToken( Identifier );
+        const Token& className = *m_tokenIt;
+        expr::ClassDefinition classDefinition{className.lexeme};
+        
+        nextToken( LeftBrace );
+        
+        // parse members
+        nextToken();
+        while( m_tokenIt->type != RightBrace )
+        {
+            if ( nextTokenIs(Var) )
+            {
+                //...
+            }
+            else if ( nextTokenIs(Func) )
+            {
+                //...
+            }
+            else if ( nextTokenIs(ClassT) )
+            {
+                //...
+            }
+            else
+            {
+                throw syntax_error( std::string("unexpected lexeme into class definition: "), m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
+            }
+        }
     }
     
     expr::Expression* parseReturn()

@@ -5,6 +5,7 @@
 #include "Logs.h"
 #include "Token.h"
 #include "TokenTypeStrings.h"
+#include <cassert>
 
 // Scanner
 class Lexer
@@ -59,12 +60,54 @@ public:
         auto startPos = m_pos;
         m_ptr++;
         m_pos++;
+        int slashCounter = 0;
         while( (m_ptr < m_endPtr) && (*m_ptr != delimiter) )
         {
             if ( *m_ptr == '\\' )
             {
                 m_ptr++;
                 m_pos++;
+                switch( *m_ptr )
+                {
+                    case '"':
+                    case '\'':
+                    case '\\':
+                    case 'n':
+                    case 'r':
+                    case 't':
+                    case '0':
+                        slashCounter++;
+                        break;
+                    case 'x':
+                        slashCounter+=3;
+                        break;
+
+                }
+                if ( m_ptr == m_endPtr )
+                {
+                    throw std::runtime_error("Unexpected end of file." );
+                }
+            }
+            if ( *m_ptr == '$' )
+            {
+                m_ptr++;
+                m_pos++;
+                switch( *m_ptr )
+                {
+                    case '"':
+                    case '\'':
+                    case '\\':
+                    case 'n':
+                    case 'r':
+                    case 't':
+                    case '0':
+                        slashCounter++;
+                        break;
+                    case 'x':
+                        slashCounter+=3;
+                        break;
+
+                }
                 if ( m_ptr == m_endPtr )
                 {
                     throw std::runtime_error("Unexpected end of file." );
@@ -74,7 +117,61 @@ public:
             m_pos++;
         }
         
-        addToken( Token{ TokenType::String, std::string(start+1,m_ptr), m_line, startPos, m_pos } );
+        if ( slashCounter == 0 )
+        {
+            addToken( Token{ TokenType::StringLiteral, std::string(start+1,m_ptr), m_line, startPos, m_pos } );
+        }
+        else
+        {
+            std::string literal;
+            literal.reserve( m_ptr-start+1-slashCounter );
+            
+            for( auto ptr=start+1; ptr<m_ptr; ptr++ )
+            {
+                if ( *ptr == '\\')
+                {
+                    switch( *(ptr+1) )
+                    {
+                        case '"':
+                        case '\'':
+                        case '\\':
+                            literal.append(1,*ptr);
+                            break;
+                        case 'n':
+                            literal.append(1,'\n');
+                            break;
+                        case 'r':
+                            literal.append(1,'\r');
+                            break;
+                        case 't':
+                            literal.append(1,'\t');
+                            break;
+                        case '0':
+                            literal.append(1,0);
+                            break;
+                        case 'x':
+                        {
+                            ptr++;
+                            uint8_t c = std::stoi( std::string(ptr,ptr+2), nullptr, 16 );
+                            literal.append(1,c);
+                            ptr++;
+                            break;
+                        }
+                        default:
+                            literal.append(1,*ptr);
+                            literal.append(1,*(ptr+1));
+                            break;
+                    }
+                    ptr++;
+                }
+                else
+                {
+                    literal.append(1,*ptr);
+                }
+            }
+            addToken( Token{ TokenType::StringLiteral, std::move(literal), m_line, startPos, m_pos } );
+        }
+        
         LOG( "TokenType::String: <" << m_tokens.back().lexeme << ">")
     }
     
@@ -141,11 +238,11 @@ public:
             {"return",Return},
             {"print",Print},
             {"func",Func},
-            {"class",Class},
+            {"class",ClassT},
             {"print",Print},
             {"int",Int},
             {"float",Float},
-            {"string",String},
+            {"string-literal",StringLiteral},
         };
         
         auto it = map.find( tolower(lexeme) );
@@ -188,7 +285,7 @@ public:
             case TokenType::Else:
             case TokenType::While:
             case TokenType::Func:
-            case TokenType::Class: {
+            case TokenType::ClassT: {
                 m_isBlockLevel++;
                 break;
             }
@@ -309,7 +406,10 @@ public:
                 case '/':
                     if ( ifNext('/') )
                     {
-                        addToken(  TokenType::Slash2, "//" );
+                        auto start = m_ptr-1;
+                        while( *m_ptr != '\n' && *m_ptr != '\r' ) m_ptr++;
+                        addToken( Token{ TokenType::Comment, std::string(start,m_ptr), m_line, m_pos } );
+                        //std::cout << std::string(start,eol) << std::endl;
                     }
                     else if ( ifNext('=') )
                     {
@@ -423,10 +523,10 @@ public:
                     break;
                 case ' ':
                 case '\t':
+                case '\r':
                     // ignore whitespaces
                     break;
                 case '\n':
-                case '\r':
                     m_line++;
                     m_pos = -1;
                     addToken( TokenType::Newline, "\n" );

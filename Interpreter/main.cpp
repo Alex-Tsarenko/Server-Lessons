@@ -27,9 +27,27 @@
 //
 //   print( "x1=\(x1+f(x2))d\(x)" );
 //}
+
+
+
 //)V0G0N";
 
 const char * test = R"V0G0N(
+//class ClassA
+//{
+//    class InnerClass
+//    {
+//        var x:int=0;
+//    }
+//
+//    var m_int: Int;
+//    var m_str: String;
+//
+//    func print()
+//    {
+//        print( "ClassA: \(m_int) \(m_str) \n" );
+//    }
+//}
 
 func f0()
 {
@@ -40,11 +58,11 @@ var a0=f0();
 
 func f1( a:Int )
 {
-print( "###f1()->\(a0+a)" );
+print( "###f1()->\(a0*a)\n" );
     return a0+a;
 }
 
-var dbg=f1(1);
+var dbg=f1(10);
 
 //func f2( a1:Int, a2:Int )
 //{
@@ -65,7 +83,6 @@ var dbg=f1(1);
 
 )V0G0N";
 
-// std::cout <<"x1=" << (x1+f(x2)) << "d"
 
 int main()
 {
