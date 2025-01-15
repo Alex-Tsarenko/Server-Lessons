@@ -613,15 +613,25 @@ struct FuncDefinition : public Expression
 
 struct ClassDefinition : public Expression
 {
-    std::string             m_name;
-    
-    // members
-    ExpressionList          m_vars;
-    ExpressionList          m_funcs;
-    ExpressionList          m_classes;
+    std::string              m_name;
+    std::vector<std::string> m_outerClasses;
 
-    ClassDefinition( const std::string& name ) : m_name(name) {}
+    // members
+    std::vector<std::string> m_baseClasses;
+    ExpressionList           m_vars;
+    ExpressionList           m_funcs;
     
+    std::map<std::string,ClassDefinition*> m_innerClasses;
+
+    ClassDefinition( const Token& lexeme ) : Expression(lexeme), m_name(lexeme.lexeme) {}
+    ClassDefinition( const Token& lexeme, const std::string& outerClassName, const std::vector<std::string>& outerClasses  )
+        : Expression(lexeme),
+          m_name(lexeme.lexeme)
+    {
+        m_outerClasses = std::vector<std::string>{ outerClasses };
+        m_outerClasses.push_back( outerClassName );
+    }
+
     ObjectValue execute( Runtime& runtime ) override
     {
     }

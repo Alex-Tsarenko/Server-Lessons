@@ -200,13 +200,21 @@ protected:
 
     void nextToken()
     {
+        while( m_tokenIt->type == Newline )
+        {
+            m_tokenIt++;
+            if ( isEof() )
+            {
+                return;
+            }
+        }
+        
         do
         {
             m_tokenIt++;
             if ( isEof() )
             {
                 return;
-                //throw syntax_error( "unexpected end of file", (m_tokenIt-1)->line, (m_tokenIt-1)->pos, (m_tokenIt-1)->endPos );
             }
         }
         // Убрать Newline-ы чтобы не мешали дальнейшему парсингу
@@ -716,29 +724,70 @@ protected:
         return new expr::PrintFuncCall{ std::move(arguments) };
     }
     
-    expr::Expression* parseClass()
+    expr::ClassDefinition* parseClass( expr::ClassDefinition* outerClass = nullptr )
     {
         nextToken( Identifier );
         const Token& className = *m_tokenIt;
-        expr::ClassDefinition classDefinition{className.lexeme};
         
+        expr::ClassDefinition* classDefinition;
+        if ( outerClass == nullptr )
+        {
+            classDefinition = new expr::ClassDefinition{ className };
+        }
+        else
+        {
+            classDefinition = new expr::ClassDefinition{ className, outerClass->m_name, outerClass->m_outerClasses };
+        }
+
+        if ( nextTokenIs(Colon) )
+        {
+            nextToken();
+            if ( ! nextTokenIs(Identifier) )
+            {
+                throw syntax_error( "expected base class name: ", m_tokenIt->line, m_tokenIt->pos, m_tokenIt->endPos );
+            }
+            nextToken();
+            classDefinition->m_baseClasses.push_back( (m_tokenIt)->lexeme );
+
+            while( nextTokenIs(Comma) )
+            {
+                nextToken();
+                classDefinition->m_baseClasses.push_back( (m_tokenIt)->lexeme );
+                nextToken();
+            }
+        }
+
         nextToken( LeftBrace );
-        
+
         // parse members
         nextToken();
         while( m_tokenIt->type != RightBrace )
         {
-            if ( nextTokenIs(Var) )
+            LOG("???: " << m_tokenIt->lexeme );
+            LOG("???: " << (m_tokenIt+1)->lexeme );
+            bool isPrivate = nextTokenIs(Private);
+            if ( isPrivate )
+            {
+                nextToken();
+            }
+
+            if ( tokenIs(Var) )
+            {
+                LOG("Parse Var:");
+                //...
+            }
+            else if ( tokenIs(Func) )
             {
                 //...
             }
-            else if ( nextTokenIs(Func) )
+            else if ( tokenIs(ClassT) )
             {
-                //...
-            }
-            else if ( nextTokenIs(ClassT) )
-            {
-                //...
+                auto* innerClass = (parseClass());
+                auto result = classDefinition->m_innerClasses.emplace( innerClass->m_name, innerClass );
+                if ( !result.second )
+                {
+                    throw syntax_error( std::string("duplicate class name: "), innerClass->m_token.line, innerClass->m_token.pos, innerClass->m_token.endPos );
+                }
             }
             else
             {

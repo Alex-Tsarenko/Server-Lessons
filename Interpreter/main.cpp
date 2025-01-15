@@ -32,22 +32,35 @@
 
 //)V0G0N";
 
-const char * test = R"V0G0N(
-//class ClassA
+//class BaseA
 //{
-//    class InnerClass
-//    {
-//        var x:int=0;
-//    }
-//
-//    var m_int: Int;
-//    var m_str: String;
-//
-//    func print()
-//    {
-//        print( "ClassA: \(m_int) \(m_str) \n" );
-//    }
+//    constructor() {}
 //}
+
+const char * test = R"V0G0N(
+
+class TestClass
+{
+    var x:int=0;
+}
+
+class ClassA : BaseA, BaseAA
+{
+    private class InnerClass
+    {
+        var x:int=0;
+    }
+
+    constructor() {}
+
+    m_int: Int;
+    private m_str: String;
+
+    fPrint()
+    {
+        print( "ClassA: \(m_int) \(m_str) \n" );
+    }
+}
 
 func f0()
 {

@@ -6,6 +6,7 @@ enum TokenType
 
     // Keywords
     ClassT,
+    Private,
     Var,
     Print, 
     Func,

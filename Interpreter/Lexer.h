@@ -26,12 +26,13 @@ public:
 
     void addToken( TokenType type, const std::string& lexeme )
     {
+        LOG( "add token: '" << gTokenTypeStrings[type] << "'");
         m_tokens.push_back( Token{ type, lexeme, m_line, m_pos } );
     }
     
     void addToken( Token&& token )
     {
-        LOG( "token: " << gTokenTypeStrings[token.type] << " " << token.lexeme );
+        LOG( "add token: " << gTokenTypeStrings[token.type] << " " << token.lexeme );
         m_tokens.push_back( std::move(token) );
     }
     
@@ -239,6 +240,7 @@ public:
             {"print",Print},
             {"func",Func},
             {"class",ClassT},
+            {"private",Private},
             {"print",Print},
             {"int",Int},
             {"float",Float},
@@ -529,7 +531,7 @@ public:
                 case '\n':
                     m_line++;
                     m_pos = -1;
-                    addToken( TokenType::Newline, "\n" );
+                    addToken( TokenType::Newline, "\\n" );
                     handleIndentation( );
                     break;
 
