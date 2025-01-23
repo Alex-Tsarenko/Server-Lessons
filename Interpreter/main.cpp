@@ -9,49 +9,60 @@
 
 
 
-//var x1 = f2( func1( a, b, c+d ) );
-//var x2 = (1+2)*(n<<2)+--y+0;
-//y = x+1;
-
-//   var x1 = ( a + b*(c + d/2)/m )*2;
-
-//    var x1 = f1( 1+ff( (a)+(1) ), f2(u(3),d(4))+5);
-
-//var x1 = f1( 1+ff( (a)+(2) ), f2(u(3),d(4))+5) + [](){ return 0;};
-
-//const char * test = R"V0G0N(
-//
-//func test()
-//{
-//   var x1 = f3( (0), 1+f1( f0()+(2) ), f2(f1(3),f1(4))+5);
-//
-//   print( "x1=\(x1+f(x2))d\(x)" );
-//}
-
-
-
-//)V0G0N";
-
-//class BaseA
-//{
-//    constructor() {}
-//}
 
 const char * test = R"V0G0N(
 
-class TestClass
+func f2( a1:Int, a2:Int )
 {
-    var x:int=0;
+    var z=1;
+print( "###f2()->\(a1-a2+z)" );
+    return a1-a2+z;
 }
 
-class ClassA : BaseA, BaseAA
+func f3( a1:Int, a2:Int, a3:Int )
+{
+print( "###f3()->\(a1+a2+a3)" );
+    return a1+a2+a3;
+}
+
+func f1( a1:Int )
+{
+    return a1+1;
+}
+
+func f0()
+{
+    return 100;
+}
+
+var x1 = f3( 1,f0(),f0());
+
+//var x0 = f0();
+//var x1 = f3( (0), 1+f1( f0()+(2) ), f2(f1(3),f1(4))+5);
+
+print( "x1=\(x1);" );
+
+
+)V0G0N";
+
+
+const char * test0 = R"V0G0N(
+
+class BaseA
+{
+    x:Int=10;
+
+    constructor( xValue: int ) { x=xValue; }
+}
+
+class ClassA : BaseA, private BaseAA
 {
     private class InnerClass
     {
-        var x:int=0;
+        x:Int=0;
     }
 
-    constructor() {}
+    constructor( xValue: int ) : BaseA(0) {}
 
     m_int: Int;
     private m_str: String;
@@ -76,23 +87,6 @@ print( "###f1()->\(a0*a)\n" );
 }
 
 var dbg=f1(10);
-
-//func f2( a1:Int, a2:Int )
-//{
-//    var z=1;
-//print( "###f2()->\(a1-a2+z)" );
-//    return a1-a2+z;
-//}
-//
-//func f3( a1:Int, a2:Int, a3:Int )
-//{
-//print( "###f3()->\(a1+a2+a3)" );
-//    return a1+a2+a3;
-//}
-//
-//var x1 = f3( (0), 1+f1( f0()+(2) ), f2(f1(3),f1(4))+5);
-//
-//print( "x1=\(x1);" );
 
 )V0G0N";
 

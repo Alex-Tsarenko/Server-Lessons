@@ -6,6 +6,7 @@ inline constexpr const char* gTokenTypeStrings[] = {
     
 "Class",
 "Private",
+"Constructor",
 "Var",
 "Print",
 "Func",
@@ -79,7 +80,8 @@ inline constexpr const char* gTokenTypeStrings[] = {
 "EndOfFile",
 "Int",
 "Float",
-"Identifier",
 "String",
+"Identifier",
+"String-Literal",
 "Error",
 };

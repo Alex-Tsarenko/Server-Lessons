@@ -7,6 +7,7 @@ enum TokenType
     // Keywords
     ClassT,
     Private,
+    Constructor,
     Var,
     Print, 
     Func,
@@ -79,7 +80,7 @@ enum TokenType
     EndOfFile,
     
     // Identifiers and literals
-    Int, Float, Identifier, StringLiteral,
+    Int, Float, String, Identifier, StringLiteral,
     
     // Others
     Error,

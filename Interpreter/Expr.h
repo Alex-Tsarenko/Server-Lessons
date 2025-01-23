@@ -3,6 +3,8 @@
 #include <forward_list>
 #include <list>
 #include <vector>
+#include <assert.h>
+
 #include "ObjectValue.h"
 
 #include "Token.h"
@@ -68,6 +70,7 @@ enum ExpressionType
     et_int,
     et_float,
     et_string,
+    et_assignment,
     et_func_call,
     et_return,
 
@@ -403,9 +406,10 @@ struct BinaryOpExpression: public Expression
 
 struct ExpressionVarDecl: public Expression
 {
-    ExpressionVarDecl( const Token& token ) : Expression(token), m_identifierName(token.lexeme) {}
+    ExpressionVarDecl( const Token& token, const std::string& varType ) : Expression(token), m_identifierName(token.lexeme), m_type(varType) {}
     
     std::string   m_identifierName;
+    std::string   m_type;
     Expression*   m_initValue;
     //TODO: Value
     
@@ -613,13 +617,33 @@ struct FuncDefinition : public Expression
 
 struct ClassDefinition : public Expression
 {
-    std::string              m_name;
-    std::vector<std::string> m_outerClasses;
+    struct BaseClassInfo
+    {
+        bool        m_isPrivate;
+        std::string m_name;
+    };
+    
+    struct VarInfo
+    {
+        bool                m_isPrivate;
+        ExpressionVarDecl*  m_var;
+    };
+    
+    struct FuncInfo
+    {
+        bool            m_isPrivate;
+        FuncDefinition* m_var;
+    };
+    
+    std::string                 m_name;
+    std::vector<std::string>    m_outerClasses;
+
+    std::vector<FuncInfo>       m_constuctors;
 
     // members
-    std::vector<std::string> m_baseClasses;
-    ExpressionList           m_vars;
-    ExpressionList           m_funcs;
+    std::vector<BaseClassInfo>      m_baseClasses;
+    std::vector<VarInfo>            m_vars;
+    std::vector<FuncInfo>           m_funcs;
     
     std::map<std::string,ClassDefinition*> m_innerClasses;
 
@@ -637,15 +661,30 @@ struct ClassDefinition : public Expression
     }
 };
 
+struct AssignmentStatement: public Expression
+{
+    std::string                 m_varName;
+    expr::Expression*           m_expr = nullptr;
+    
+    AssignmentStatement( const Token& token ) : Expression(token), m_varName(token.lexeme) {}
+    
+    virtual enum ExpressionType type() override { return et_assignment; }
+    
+    ObjectValue execute( Runtime& runtime ) override
+    {
+        assert("todo");
+    }
+};
+
 // Binary expression with unary operator
 struct FunctionCall: public Expression
 {
+    std::string                 m_functionName;
+    std::vector<Expression*>    m_parameters;
+
     FunctionCall( const Token& token ) : Expression(token), m_functionName(token.lexeme) {}
     
     virtual enum ExpressionType type() override { return et_func_call; }
-    
-    std::string                 m_functionName;
-    std::vector<Expression*>    m_parameters;
     
     virtual void evaluate2() override
     {
@@ -661,7 +700,7 @@ struct FunctionCall: public Expression
     
     ObjectValue execute( Runtime& runtime ) override
     {
-        LOG("execute function: " << m_functionName )
+        LOG("execute function?: " << m_functionName )
         if ( auto it = runtime.m_funcMap.find( m_functionName ); it == runtime.m_funcMap.end() )
         {
             RUNTIME_EX2( std::string("Undefined function: ") + m_functionName );
@@ -677,6 +716,7 @@ struct FunctionCall: public Expression
                 if ( paramIt != m_parameters.end() )
                 {
                     ObjectValue paramValue = (*paramIt)->execute( runtime );
+                    LOG("execute function: " << m_functionName << ": arg: " << arg.m_name << " = " << paramValue.pstring() )
                     auto result = runtime.m_localVarStack.back().emplace( arg.m_name, paramValue );
                     paramIt++;
                 }

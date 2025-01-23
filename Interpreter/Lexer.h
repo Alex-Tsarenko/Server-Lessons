@@ -233,17 +233,20 @@ public:
         //        Pass,
         
         static std::unordered_map<std::string,TokenType> map = {
+            {"class",ClassT},
+            {"private",Private},
+            {"constructor",Constructor},
             {"var",Var},
             {"if",If},
             {"for",For},
             {"return",Return},
             {"print",Print},
             {"func",Func},
-            {"class",ClassT},
             {"private",Private},
             {"print",Print},
             {"int",Int},
             {"float",Float},
+            {"string",String},
             {"string-literal",StringLiteral},
         };
         

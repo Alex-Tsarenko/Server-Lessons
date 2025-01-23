@@ -46,6 +46,19 @@ struct ObjectValue
         }
     }
 
+    std::string pstring()
+    {
+        switch( m_type )
+        {
+            case ot_null: return "<null>";
+            case ot_bool: return m_boolValue ? "<bool:true>" : "<bool:false>";
+            case ot_int:  return std::string("<Int:") + std::to_string(m_intValue) + ">";
+            case ot_double: return std::string("<Double:") + std::to_string(m_doubleValue) + ">";
+            case ot_string: return std::string("<String:") + *m_stringValue + ">";;
+        }
+        return "<unknown-type>";
+    }
+    
     void toStream( std::ostream& stream )
     {
         switch( m_type )
