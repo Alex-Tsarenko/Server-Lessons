@@ -10,14 +10,14 @@
 
 
 
-const char * test = R"V0G0N(
+const char * test0 = R"V0G0N(
 
-func f2( a1:Int, a2:Int )
-{
-    var z=1;
-print( "###f2()->\(a1-a2+z)" );
-    return a1-a2+z;
-}
+//func f2( a1:Int, a2:Int )
+//{
+//    var z=1;
+//print( "###f2()->\(a1-a2+z)" );
+//    return a1-a2+z;
+//}
 
 func f3( a1:Int, a2:Int, a3:Int )
 {
@@ -36,6 +36,9 @@ func f0()
 }
 
 var x1 = f3( 1,f0(),f0());
+//var xxx1 = x1;
+
+xxx1 = x1;
 
 //var x0 = f0();
 //var x1 = f3( (0), 1+f1( f0()+(2) ), f2(f1(3),f1(4))+5);
@@ -46,13 +49,15 @@ print( "x1=\(x1);" );
 )V0G0N";
 
 
-const char * test0 = R"V0G0N(
+const char * test = R"V0G0N(
 
 class BaseA
 {
     x:Int=10;
 
-    constructor( xValue: int ) { x=xValue; }
+    constructor( xValue: Int ) {
+        x=xValue;
+    }
 }
 
 class ClassA : BaseA, private BaseAA
@@ -67,7 +72,7 @@ class ClassA : BaseA, private BaseAA
     m_int: Int;
     private m_str: String;
 
-    fPrint()
+    func fPrint()
     {
         print( "ClassA: \(m_int) \(m_str) \n" );
     }

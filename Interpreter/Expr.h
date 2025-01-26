@@ -97,7 +97,7 @@ struct Expression
     {
         LOG("<Expression evaluate: NIL>");
     }
-    virtual void evaluate2()
+    virtual void printExpr()
     {
         LOG("<Expression evaluate: NIL>");
     }
@@ -208,7 +208,7 @@ struct PrintFuncCall: public Expression
             ObjectValue value = expr->execute( runtime );
             value.toStream( std::cout );
         }
-        
+       
         if ( m_withNewLine )
         {
             std::cout << std::endl;
@@ -234,10 +234,10 @@ struct UnaryExpression: public Expression
         evalPrint( m_token.lexeme );
         evalPrint( m_expr );
     }
-    virtual void evaluate2() override
+    virtual void printExpr() override
     {
         LOGX( "(" << m_token.lexeme << " " );
-        m_expr->evaluate2();
+        m_expr->printExpr();
         LOGX( ")");
     }
     
@@ -319,12 +319,12 @@ struct BinaryOpExpression: public Expression
         evalPrint( m_expr );
     }
     
-    virtual void evaluate2() override
+    virtual void printExpr() override
     {
         LOGX( "(" );
-        m_expr2->evaluate2();
+        m_expr2->printExpr();
         LOGX( " " << m_token.lexeme << " " );
-        m_expr->evaluate2();
+        m_expr->printExpr();
         LOGX( ")");
     }
 
@@ -471,13 +471,17 @@ struct Identifier : public Expression
         evalPrint( m_name );
     }
 
-    virtual void evaluate2() override
+    virtual void printExpr() override
     {
         LOGX( "'" << m_token.lexeme );
     }
     
     ObjectValue execute( Runtime& runtime ) override
     {
+        if ( m_name == "xxx1" )
+        {
+            LOG("dbg")
+        }
         LOG( "execute var: " << m_name )
         for( auto localVarMapIt = runtime.m_localVarStack.rbegin();
              localVarMapIt != runtime.m_localVarStack.rend();
@@ -515,7 +519,7 @@ struct IntNumber : public Expression
         evalPrint( m_value );
     }
     
-    virtual void evaluate2() override
+    virtual void printExpr() override
     {
         LOGX( m_value );
     }
@@ -545,7 +549,7 @@ struct FloatNumber : public Expression
         evalPrint( m_value );
     }
     
-    virtual void evaluate2() override
+    virtual void printExpr() override
     {
         LOGX( m_value );
     }
@@ -580,7 +584,7 @@ struct String : public Expression
         evalPrint( m_value );
     }
     
-    virtual void evaluate2() override
+    virtual void printExpr() override
     {
         LOGX( m_value );
     }
@@ -686,13 +690,13 @@ struct FunctionCall: public Expression
     
     virtual enum ExpressionType type() override { return et_func_call; }
     
-    virtual void evaluate2() override
+    virtual void printExpr() override
     {
         LOGX( m_token.lexeme << "(" );
         for( auto& parameter: m_parameters )
         {
             LOGX( " ");
-            parameter->evaluate2();
+            parameter->printExpr();
             LOGX( ",");
         }
         LOGX( ")");
