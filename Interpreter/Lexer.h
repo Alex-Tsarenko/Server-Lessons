@@ -50,11 +50,6 @@ public:
         return false;
     }
 
-    void handleIndentation( )
-    {
-        
-    }
-    
     void handleStringLiteral( char delimiter )
     {
         auto start = m_ptr;
@@ -301,17 +296,16 @@ public:
 
         m_ptr--;
         m_pos--;
+        assert( *m_ptr != '\n' );
     }
 
     void run()
     {
         addToken( TokenType::Begin, "<begin>" );
 
-        while( m_ptr < m_endPtr )
+        m_line = 0;
+        for(; m_ptr < m_endPtr; m_ptr++, m_pos++ )
         {
-            m_ptr++;
-            m_pos++;
-            
             switch( *m_ptr )
             {
                 case 0:
@@ -518,14 +512,14 @@ public:
                         addToken( TokenType::Greater, ">" );
                     }
                     break;
-                 case '#':
-                    for( m_ptr++; (m_ptr < m_endPtr) && (*m_ptr != '\n'); m_ptr++ )
-                    {
-                    }
-                    m_ptr--;
-                    m_line++;
-                    m_pos=-1;
-                    break;
+//                 case '#':
+//                    for( m_ptr++; (m_ptr < m_endPtr) && (*m_ptr != '\n'); m_ptr++ )
+//                    {
+//                    }
+//                    m_ptr--;
+//                    m_line++;
+//                    m_pos=-1;
+//                    break;
                 case ' ':
                 case '\t':
                 case '\r':
@@ -535,7 +529,6 @@ public:
                     m_line++;
                     m_pos = -1;
                     addToken( TokenType::Newline, "\\n" );
-                    handleIndentation( );
                     break;
 
                     // string literals

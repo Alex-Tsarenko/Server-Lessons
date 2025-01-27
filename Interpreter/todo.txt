@@ -2,4 +2,6 @@
 - a = ...
 - f(), f(...)
 - print as func
+- f1() = f2() // f1() -> return refference
+- while(<pre-condotion>;<post-condition>)
 

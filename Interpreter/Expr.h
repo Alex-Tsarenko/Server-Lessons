@@ -36,23 +36,17 @@ inline std::string getLine( const char* text, int lineNumber )
     {
         if ( *ptr == 0 )
         {
-            return "";
+            return "<eof>";
         }
         
-        if ( *ptr == '\n' || *ptr == '\r' )
+        if ( *ptr == '\n' )
         {
             number++;
-            while( *ptr == '\n' || *ptr == '\r' )
-            {
-                ptr++;
-                if ( *ptr == 0 )
-                {
-                    return "";
-                }
-            }
+
+            //todo '\r'
             if ( number == lineNumber )
             {
-                return std::string( ptr, getLineEnd(ptr) );
+                return std::string( ptr+1, getLineEnd(ptr+1) );
             }
         }
     }

@@ -67,7 +67,7 @@ class ClassA : BaseA, private BaseAA
         x:Int=0;
     }
 
-    constructor( xValue: int ) : BaseA(0) {}
+    constructor( xValue: Int ) : BaseA(0) {}
 
     m_int: Int;
     private m_str: String;
