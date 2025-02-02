@@ -230,7 +230,6 @@ public:
         static std::unordered_map<std::string,TokenType> map = {
             {"class",ClassT},
             {"private",Private},
-            {"constructor",Constructor},
             {"var",Var},
             {"if",If},
             {"for",For},

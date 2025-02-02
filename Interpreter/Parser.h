@@ -191,7 +191,11 @@ protected:
             case Var:
                 return parseVar();
             case Func:
-                return parseFuncDef();
+            {
+                expr::FuncDefinition* funcDef = new expr::FuncDefinition;
+                parseFuncDef( funcDef );
+                return funcDef;
+            }
             case If:
                 return parseIf();
             case For:
@@ -203,8 +207,6 @@ protected:
             case ClassT:
             {
                 auto* classDefinition = parseClass();
-                assert( m_tokenIt->type == RightBrace );
-                takeNextToken();
                 return classDefinition;
             }
             case Identifier:
@@ -237,6 +239,7 @@ protected:
 
 
             default:
+                LOG( "parseStatement: unexpected token: " << gTokenTypeStrings[m_tokenIt->type]  );
                 throw syntax_error( std::string("parseStatement: unexpected token: ")+gTokenTypeStrings[m_tokenIt->type],  *m_tokenIt );
                 break;
         }
@@ -247,7 +250,7 @@ protected:
 
     void takeNextToken()
     {
-        while( m_tokenIt->type == Newline )
+        while( m_tokenIt->type == Newline || m_tokenIt->type == Comment )
         {
             m_tokenIt++;
             if ( isEof() )
@@ -266,7 +269,7 @@ protected:
             }
         }
         // Убрать Newline-ы чтобы не мешали дальнейшему парсингу
-        while( m_tokenIt->type == Newline );
+        while( m_tokenIt->type == Newline || m_tokenIt->type == Comment );
     }
     
     void tokenBack()
@@ -275,19 +278,20 @@ protected:
         m_tokenIt--;
     }
     
-    void tokenMustBe( TokenType type )
-    {
-        if ( m_tokenIt->type != type )
-        {
-            throw syntax_error( std::string("expected: '")+gTokenTypeStrings[type]+"'",  *m_tokenIt );
-        }
-    }
+//    void tokenMustBe( TokenType type )
+//    {
+//        if ( m_tokenIt->type != type )
+//        {
+//            throw syntax_error( std::string("expected: '")+gTokenTypeStrings[type]+"'",  *m_tokenIt );
+//        }
+//    }
     
     void takeNextToken( TokenType type )
     {
         takeNextToken();
         if ( m_tokenIt->type != type )
         {
+            LOG( gTokenTypeStrings[m_tokenIt->type] )
             throw syntax_error( std::string("expected: '")+gTokenTypeStrings[type]+"'",  *m_tokenIt );
         }
     }
@@ -811,6 +815,7 @@ protected:
     {
         takeNextToken( Identifier );
         const Token& className = *m_tokenIt;
+        LOG("className: " << className.lexeme )
         
         // Create class definition structure
         expr::ClassDefinition* classDefinition;
@@ -882,9 +887,15 @@ protected:
             {
                 if ( nextTokenIs(LeftParen) )
                 {
-                    // parse function
-                    auto* definition = parseFuncDef();
-                    classDefinition->m_constuctors.emplace_back( expr::ClassDefinition::FuncInfo{ isPrivate, definition } );
+                    // parse constructor
+                    if ( ! tokenIs(Identifier) || m_tokenIt->lexeme != "constructor" )
+                    {
+                        throw syntax_error( std::string("inside class unexpected : ") + m_tokenIt->lexeme, *m_tokenIt );
+                    }
+                    auto* constructorDef = new expr::ClassDefinition::ConstructorInfo;
+                    parseFuncDef( constructorDef );
+                    constructorDef->m_isPrivate = isPrivate;
+                    classDefinition->m_constuctors.push_back( constructorDef );
                 }
                 else
                 {
@@ -893,11 +904,11 @@ protected:
                     classDefinition->m_vars.emplace_back( expr::ClassDefinition::VarInfo{ isPrivate, varDef } );
                 }
             }
-            else if ( tokenIs(Constructor) )
-            {
-                auto* definition = parseFuncDef( true );
-                classDefinition->m_constuctors.emplace_back( expr::ClassDefinition::FuncInfo{ isPrivate, definition } );
-            }
+//            else if ( tokenIs(Constructor) )
+//            {
+//                auto* definition = parseFuncDef( true );
+//                classDefinition->m_constuctors.emplace_back( expr::ClassDefinition::FuncInfo{ isPrivate, definition } );
+//            }
             else if ( tokenIs(Func) )
             {
                 throw syntax_error( "unexpected 'func' keyword inside class: ", *m_tokenIt );
@@ -917,6 +928,9 @@ protected:
                 throw syntax_error( std::string("unexpected lexeme into class definition: "), *m_tokenIt );
             }
         }
+        
+        assert( m_tokenIt->type == RightBrace );
+        takeNextToken();
     }
     
     expr::Expression* parseReturn()
@@ -1001,11 +1015,10 @@ protected:
         return result;
     }
 
-    expr::FuncDefinition* parseFuncDef( bool isConstructor = false )
+    template<class T>
+    void parseFuncDef( T* func )
     {
-        auto* func = new expr::FuncDefinition;
-
-        if ( ! isConstructor )
+        if constexpr (std::is_same<T, expr::FuncDefinition>::value)
         {
             // Save function name
             takeNextToken();
@@ -1050,13 +1063,31 @@ protected:
             takeNextToken();
             if ( ! tokenIs( Comma ) )
             {
-                tokenMustBe( RightParen );
                 break;
             }
             takeNextToken();
-
         }
-
+        
+        if constexpr (std::is_same<T, expr::ClassDefinition::ConstructorInfo>::value)
+        {
+            if ( nextTokenIs(Colon) )
+            {
+                takeNextToken();
+                while( ! nextTokenIs(LeftBrace) )
+                {
+                    takeNextToken( Identifier );
+                    auto className = m_tokenIt->lexeme;
+                    takeNextToken( LeftParen );
+                    while( ! tokenIs(RightParen) )
+                    {
+                        auto* expr = parseExpr( RightParen );
+                        tokenBack();
+                        func->m_baseClassInitList.push_back( expr );
+                    }
+                }
+            }
+        }
+        
         takeNextToken( LeftBrace );
         m_blockLevel++;
         

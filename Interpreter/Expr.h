@@ -627,16 +627,22 @@ struct ClassDefinition : public Expression
         ExpressionVarDecl*  m_var;
     };
     
+    struct ConstructorInfo: FuncDefinition
+    {
+        bool                        m_isPrivate;
+        std::vector<Expression*>    m_baseClassInitList;
+    };
+
     struct FuncInfo
     {
         bool            m_isPrivate;
         FuncDefinition* m_var;
     };
-    
+
     std::string                 m_name;
     std::vector<std::string>    m_outerClasses;
 
-    std::vector<FuncInfo>       m_constuctors;
+    std::vector<ConstructorInfo*>   m_constuctors;
 
     // members
     std::vector<BaseClassInfo>      m_baseClasses;

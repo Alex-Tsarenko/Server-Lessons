@@ -60,7 +60,7 @@ class BaseA
     }
 }
 
-class ClassA : BaseA, private BaseAA
+class ClassA //: BaseA, private BaseAA
 {
     private class InnerClass
     {
