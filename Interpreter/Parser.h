@@ -135,7 +135,7 @@ public:
         
         assert( tokens.size() > 0 );
         assert( tokenIs(Begin) );
-        takeNextToken();
+        shiftToNextToken();
 
         try
         {
@@ -146,7 +146,7 @@ public:
                 {
                     break;
                 }
-                //LOG("+it::: " << gTokenTypeStrings[m_tokenIt->type] )
+                LOG("+it::: " << gTokenTypeStrings[m_tokenIt->type] )
                 if ( auto expr = parseStatement(); expr != nullptr )
                 {
                     m_current->push_back( expr );
@@ -191,11 +191,7 @@ protected:
             case Var:
                 return parseVar();
             case Func:
-            {
-                expr::FuncDefinition* funcDef = new expr::FuncDefinition;
-                parseFuncDef( funcDef );
-                return funcDef;
-            }
+                return parseFuncDef< expr::FuncDefinition >();
             case If:
                 return parseIf();
             case For:
@@ -220,7 +216,7 @@ protected:
                 {
                     // assignment
                     auto* assignment = new expr::AssignmentStatement( *m_tokenIt );
-                    takeNextToken( Assignment );
+                    shiftToNextToken( Assignment );
                     assignment->m_expr = parseExpr( Semicolon );
                     return assignment;
                 }
@@ -234,7 +230,7 @@ protected:
                 return nullptr;
 
             case Comment:
-                takeNextToken();
+                shiftToNextToken();
                 return nullptr;
 
 
@@ -248,7 +244,7 @@ protected:
         return nullptr;
     }
 
-    void takeNextToken()
+    void shiftToNextToken()
     {
         while( m_tokenIt->type == Newline || m_tokenIt->type == Comment )
         {
@@ -286,9 +282,9 @@ protected:
 //        }
 //    }
     
-    void takeNextToken( TokenType type )
+    void shiftToNextToken( TokenType type )
     {
-        takeNextToken();
+        shiftToNextToken();
         if ( m_tokenIt->type != type )
         {
             LOG( gTokenTypeStrings[m_tokenIt->type] )
@@ -360,7 +356,7 @@ protected:
         auto* result = constructExpr();
         
         assert( m_tokenIt->type==endToken );
-        takeNextToken();
+        shiftToNextToken();
         //result->printExpr();
         return result;
     }
@@ -441,13 +437,14 @@ protected:
         
         while( !theEnd )
         {
-            takeNextToken();
+            shiftToNextToken();
 
             LOG( "parseExpr: " << gTokenTypeStrings[m_tokenIt->type] << " " << m_tokenIt->lexeme );
             switch( m_tokenIt->type )
             {
                 case Identifier:
                 {
+                    LOG( "Identifier: " << m_tokenIt->lexeme )
 
                     if ( nextTokenIs( LeftParen ) )
                     {
@@ -455,7 +452,7 @@ protected:
 
                         // Function call
                         m_funcStack.push_back( new expr::FunctionCall( { *m_tokenIt }  ) );
-                        takeNextToken();
+                        shiftToNextToken();
                         m_operationStack.push_back( m_funcStack.back() );
                     }
                     else
@@ -756,46 +753,49 @@ protected:
         //
         if ( !isClassMember )
         {
-            takeNextToken( Identifier );
+            shiftToNextToken( Identifier );
         }
+        
         const Token& varName = *m_tokenIt;
         std::string varType;
         expr::Expression* expr = nullptr;
         
-        if ( nextTokenIs( Colon ) )
+        shiftToNextToken();
+        
+        if ( tokenIs( Colon ) )
         {
-            takeNextToken();
-            if ( ! nextTokenIs(Identifier) && ! nextTokenIs(Int) && ! nextTokenIs(Float) && ! nextTokenIs(String) )
+            shiftToNextToken();
+            if ( ! tokenIs(Identifier) && ! tokenIs(Int) && ! tokenIs(Float) && ! tokenIs(String) )
             {
                 throw syntax_error( std::string("expected type: "), *m_tokenIt );
             }
-            takeNextToken();
             LOG( "After colon (var type): " << m_tokenIt->lexeme );
             varType = m_tokenIt->lexeme;
+
+            shiftToNextToken();
         }
 
-        if ( nextTokenIs( Assignment ) )
+        if ( tokenIs( Assignment ) )
         {
             // skip assignment
-            takeNextToken();
             expr = parseExpr( Semicolon );
+        }
+
+        if ( tokenIs( Semicolon ) )
+        {
+            shiftToNextToken();
         }
         
         auto* varExpr = new expr::ExpressionVarDecl{varName,varType};
         varExpr->m_initValue = expr;
-        
-//        if ( auto it = m_runtime.m_globalVarMap.find(varName.lexeme); it != m_runtime.m_globalVarMap.end() )
-//        {
-//            throw syntax_error( std::string("function with same name already exist: "), *m_tokenIt );
-//        }
         
         return varExpr;
     }
 
     expr::Expression* parsePrint()
     {
-        takeNextToken( LeftParen );
-        takeNextToken( StringLiteral );
+        shiftToNextToken( LeftParen );
+        shiftToNextToken( StringLiteral );
         
         auto& argument = m_tokenIt->lexeme;
         
@@ -804,16 +804,16 @@ protected:
         // print( "x1=\(x1)d" )
         // std::cout << "x1=" << x1 << "d";
 
-        takeNextToken( RightParen );
-        takeNextToken( Semicolon );
-        takeNextToken();
+        shiftToNextToken( RightParen );
+        shiftToNextToken( Semicolon );
+        shiftToNextToken();
 
         return new expr::PrintFuncCall{ std::move(arguments) };
     }
     
     expr::ClassDefinition* parseClass( expr::ClassDefinition* outerClass = nullptr )
     {
-        takeNextToken( Identifier );
+        shiftToNextToken( Identifier );
         const Token& className = *m_tokenIt;
         LOG("className: " << className.lexeme )
         
@@ -831,7 +831,7 @@ protected:
         // Parse base classes
         if ( nextTokenIs(Colon) )
         {
-            takeNextToken( Colon );
+            shiftToNextToken( Colon );
             
             bool firstBaseClass = true;
             while( firstBaseClass || nextTokenIs(Comma) )
@@ -842,15 +842,15 @@ protected:
                 }
                 else
                 {
-                    takeNextToken( Comma );
+                    shiftToNextToken( Comma );
                 }
-                takeNextToken();
+                shiftToNextToken();
                 
                 bool isPrivate = false;
                 if ( tokenIs(Private) )
                 {
                     isPrivate = true;
-                    takeNextToken();
+                    shiftToNextToken();
                 }
                 
                 if ( ! tokenIs(Identifier) )
@@ -863,10 +863,10 @@ protected:
             }
         }
 
-        takeNextToken( LeftBrace );
+        shiftToNextToken( LeftBrace );
 
         // parse members
-        takeNextToken();
+        shiftToNextToken();
         while( m_tokenIt->type != RightBrace )
         {
             LOG("???: " << m_tokenIt->lexeme );
@@ -876,7 +876,7 @@ protected:
             if ( tokenIs(Private) )
             {
                 isPrivate = true;
-                takeNextToken();
+                shiftToNextToken();
             }
             
             if ( tokenIs(Var) )
@@ -892,8 +892,7 @@ protected:
                     {
                         throw syntax_error( std::string("inside class unexpected : ") + m_tokenIt->lexeme, *m_tokenIt );
                     }
-                    auto* constructorDef = new expr::ClassDefinition::ConstructorInfo;
-                    parseFuncDef( constructorDef );
+                    auto* constructorDef = parseFuncDef< expr::ClassDefinition::ConstructorInfo >();
                     constructorDef->m_isPrivate = isPrivate;
                     classDefinition->m_constuctors.push_back( constructorDef );
                 }
@@ -915,13 +914,17 @@ protected:
             }
             else if ( tokenIs(ClassT) )
             {
-                auto* innerClass = (parseClass());
+                auto* innerClass = parseClass();
                 auto result = classDefinition->m_innerClasses.emplace( innerClass->m_name, innerClass );
                 if ( !result.second )
                 {
                     throw syntax_error( std::string("duplicate class name: "), innerClass->m_token.line, innerClass->m_token.pos, innerClass->m_token.endPos );
                 }
             }
+//            else if ( tokenIs(Int) || tokenIs(Float) || tokenIs(String) || tokenIs(Identifier) || tokenIs(StringLiteral) )
+//            {
+//                
+//            }
             else
             {
                 LOG( std::string("unexpected lexeme into class definition: ") << m_tokenIt->lexeme );
@@ -930,7 +933,9 @@ protected:
         }
         
         assert( m_tokenIt->type == RightBrace );
-        takeNextToken();
+        shiftToNextToken();
+        
+        return classDefinition;
     }
     
     expr::Expression* parseReturn()
@@ -1016,12 +1021,13 @@ protected:
     }
 
     template<class T>
-    void parseFuncDef( T* func )
+    T* parseFuncDef()
     {
+        auto* func = new T{};
         if constexpr (std::is_same<T, expr::FuncDefinition>::value)
         {
             // Save function name
-            takeNextToken();
+            shiftToNextToken();
             func->m_name = m_tokenIt->lexeme;
 
             if ( auto it = m_runtime.m_funcMap.find(func->m_name); it != m_runtime.m_funcMap.end() )
@@ -1032,8 +1038,8 @@ protected:
         
         //m_runtime.m_funcMap[func->m_name] = func;
         
-        takeNextToken( LeftParen );
-        takeNextToken();
+        shiftToNextToken( LeftParen );
+        shiftToNextToken();
         
         // Parse arguments
         int argumentNumber = 0;
@@ -1051,33 +1057,33 @@ protected:
             // Argument name
             std::string name = m_tokenIt->lexeme;
             
-            takeNextToken( Colon );
+            shiftToNextToken( Colon );
 
             // Parse argument type
-            takeNextToken();
+            shiftToNextToken();
             tokenMustBeType();
             
             LOG( "argument: " << name << " Type:" << m_tokenIt->lexeme )
             func->m_argList.emplace_back( expr::Argument{std::move(name), m_tokenIt->lexeme} );
 
-            takeNextToken();
+            shiftToNextToken();
             if ( ! tokenIs( Comma ) )
             {
                 break;
             }
-            takeNextToken();
+            shiftToNextToken();
         }
         
         if constexpr (std::is_same<T, expr::ClassDefinition::ConstructorInfo>::value)
         {
             if ( nextTokenIs(Colon) )
             {
-                takeNextToken();
+                shiftToNextToken();
                 while( ! nextTokenIs(LeftBrace) )
                 {
-                    takeNextToken( Identifier );
+                    shiftToNextToken( Identifier );
                     auto className = m_tokenIt->lexeme;
-                    takeNextToken( LeftParen );
+                    shiftToNextToken( LeftParen );
                     while( ! tokenIs(RightParen) )
                     {
                         auto* expr = parseExpr( RightParen );
@@ -1088,10 +1094,10 @@ protected:
             }
         }
         
-        takeNextToken( LeftBrace );
+        shiftToNextToken( LeftBrace );
         m_blockLevel++;
         
-        takeNextToken();
+        shiftToNextToken();
         while( m_tokenIt->type != RightBrace )
         {
             func->m_body.m_list.push_back( parseStatement() );
@@ -1099,14 +1105,14 @@ protected:
 
         m_blockLevel--;
         
-        takeNextToken();
+        shiftToNextToken();
         
         return func;
     }
     
     expr::Expression* parseIf()
     {
-        takeNextToken( LeftParen );
+        shiftToNextToken( LeftParen );
         
         throw syntax_error( std::string("TODO: "), *m_tokenIt );
         return nullptr;

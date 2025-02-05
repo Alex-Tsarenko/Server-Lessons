@@ -17,7 +17,7 @@ add_executable(Interpreter
   Expr.h
   Lexer.h
   Logs.h
-  Object.h
+  ObjectValue.h
   Parser.h
   Token.h
   TokenType.h

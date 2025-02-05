@@ -51,6 +51,8 @@ print( "x1=\(x1);" );
 
 const char * test = R"V0G0N(
 
+var dbg0=f0();
+
 class BaseA
 {
     x:Int=10;
