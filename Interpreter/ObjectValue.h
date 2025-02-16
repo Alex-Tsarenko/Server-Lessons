@@ -3,6 +3,14 @@
 #include <string>
 #include <iostream>
 
+namespace expr
+{
+    struct FuncDefinition;
+    struct VarDeclaration;
+    struct ClassDefinition;
+    struct Expression;
+}
+
 struct runtime_ex : std::runtime_error
 {
     runtime_ex( const std::string& message ) : std::runtime_error(message) {}
@@ -19,18 +27,21 @@ struct runtime_ex3 : std::runtime_error
 #define RUNTIME_EX2(message) throw runtime_ex( message );
 #define RUNTIME_EX3(message,token) throw runtime_ex3( message,token );
 
-enum ObjectType : uint8_t { ot_null, ot_bool, ot_int, ot_double, ot_string };
+enum ObjectType : uint8_t { ot_null, ot_bool, ot_int, ot_double, ot_string, ot_class };
+
+struct ClassObject;
 
 struct ObjectValue
 {
     ObjectType m_type;
     uint8_t    m_isReturned = 0;
-    
+
     union {
         bool        m_boolValue;
         uint64_t    m_intValue;
         double      m_doubleValue;
         std::string* m_stringValue;
+        ClassObject* m_classObject;
     };
     
     ObjectValue()
@@ -38,11 +49,16 @@ struct ObjectValue
         m_type = ot_null;
         m_stringValue = nullptr;
     }
+
     ~ObjectValue()
     {
         if ( m_type == ot_string )
         {
             delete m_stringValue;
+        }
+        else if ( m_type == ot_class )
+        {
+            delete m_classObject;
         }
     }
 

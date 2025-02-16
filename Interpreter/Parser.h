@@ -85,7 +85,8 @@ public:
 
         try
         {
-            return parseExpr( RightParen );
+//            return parseExpr( RightParen );
+            return parseExpr( EndOfFile );
         }
         catch( syntax_error& error )
         {
@@ -100,6 +101,7 @@ public:
                 std::cerr << '^';
             }
             std::cerr << std::endl;
+            exit(0);
         }
     }
 
@@ -191,6 +193,7 @@ protected:
             case Var:
                 return parseVar();
             case Func:
+                //todo++ add to namespace
                 return parseFuncDef< expr::FuncDefinition >();
             case If:
                 return parseIf();
@@ -203,6 +206,7 @@ protected:
             case ClassT:
             {
                 auto* classDefinition = parseClass();
+                //todo++ add to namespace
                 return classDefinition;
             }
             case Identifier:
@@ -349,7 +353,7 @@ protected:
             }
             else
             {
-                LOG( "### dbg: " <<  m_output[i]->m_token.type << " " << m_output[i]->m_token.lexeme.c_str() );
+                LOG( "### dbg: " <<  gTokenTypeStrings[m_output[i]->m_token.type] << " " << m_output[i]->m_token.lexeme.c_str() );
             }
         }
         
@@ -643,7 +647,10 @@ protected:
                     auto precedence = operatorTokenTable[m_tokenIt->type];
                     if ( precedence == 0 )
                     {
-                        tokenBack();
+                        if ( m_tokenIt->type != EndOfFile )
+                        {
+                            tokenBack();
+                        }
                         theEnd = true;
                         break;
                     }
@@ -746,7 +753,7 @@ protected:
         return expr;
     }
     
-    expr::ExpressionVarDecl* parseVar( bool isClassMember = false )
+    expr::VarDeclaration* parseVar( bool isClassMember = false )
     {
         //
         // "var" <indentifier> [ "=" <expression> ]
@@ -786,7 +793,7 @@ protected:
             shiftToNextToken();
         }
         
-        auto* varExpr = new expr::ExpressionVarDecl{varName,varType};
+        auto* varExpr = new expr::VarDeclaration{varName,varType};
         varExpr->m_initValue = expr;
         
         return varExpr;
@@ -900,17 +907,13 @@ protected:
                 {
                     // parse variable
                     auto* varDef = parseVar( true );
-                    classDefinition->m_vars.emplace_back( expr::ClassDefinition::VarInfo{ isPrivate, varDef } );
+                    classDefinition->m_vars.push_back( {isPrivate,varDef} );
                 }
             }
-//            else if ( tokenIs(Constructor) )
-//            {
-//                auto* definition = parseFuncDef( true );
-//                classDefinition->m_constuctors.emplace_back( expr::ClassDefinition::FuncInfo{ isPrivate, definition } );
-//            }
             else if ( tokenIs(Func) )
             {
-                throw syntax_error( "unexpected 'func' keyword inside class: ", *m_tokenIt );
+                auto* funcDef = parseFuncDef< expr::FuncDefinition >();
+                classDefinition->m_funcs.push_back( {isPrivate,funcDef} );
             }
             else if ( tokenIs(ClassT) )
             {
@@ -991,7 +994,7 @@ protected:
 //                    std::string exprString(exprBegin,ptr);
 //                    LOG( "exprString: " << exprString << " " << ptr-exprBegin);
                     
-                    Lexer& exprLexer = * new Lexer{ exprBegin-1, ptr };
+                    Lexer& exprLexer = * new Lexer{ exprBegin, ptr };
                     m_nestedLexers.push_back(&exprLexer);
                     
                     exprLexer.run();
@@ -1002,7 +1005,7 @@ protected:
 //                    {
 //                        LOG("----Parse token: " << token.lexeme );
 //                    }
-                    auto* expression = parser.parsePrintExpr( exprBegin-1, exprLexer.tokens() );
+                    auto* expression = parser.parsePrintExpr( exprBegin, exprLexer.tokens() );
                     LOG("--- expression: " << (void*)expression );
                     result.push_back( expression );
                     startOfLiteral = ptr+1;
@@ -1030,7 +1033,7 @@ protected:
             shiftToNextToken();
             func->m_name = m_tokenIt->lexeme;
 
-            if ( auto it = m_runtime.m_funcMap.find(func->m_name); it != m_runtime.m_funcMap.end() )
+            if ( auto it = m_runtime.m_namespace.m_functionMap.find(func->m_name); it != m_runtime.m_namespace.m_functionMap.end() )
             {
                 throw syntax_error( std::string("function with same name already exist: "), *m_tokenIt );
             }
@@ -1113,7 +1116,7 @@ protected:
     expr::Expression* parseIf()
     {
         shiftToNextToken( LeftParen );
-        
+        //???
         throw syntax_error( std::string("TODO: "), *m_tokenIt );
         return nullptr;
     }

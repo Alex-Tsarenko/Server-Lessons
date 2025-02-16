@@ -10,3 +10,7 @@
 - class/namespace scopes
 
 - "colorized" functions ( @function(…) $function() )
+
+var (p1,p2)
+var/mut x;
+let y = { return 0; };

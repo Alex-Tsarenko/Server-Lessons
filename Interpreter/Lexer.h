@@ -407,6 +407,8 @@ public:
                         auto start = m_ptr-1;
                         while( *m_ptr != '\n' && *m_ptr != '\r' ) m_ptr++;
                         addToken( Token{ TokenType::Comment, std::string(start,m_ptr), m_line, m_pos } );
+                        m_line++;
+                        m_pos = 0;
                         //std::cout << std::string(start,eol) << std::endl;
                     }
                     else if ( ifNext('=') )

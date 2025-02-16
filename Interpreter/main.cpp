@@ -51,6 +51,14 @@ print( "x1=\(x1);" );
 
 const char * test = R"V0G0N(
 
+        var xxx=0;
+        if (x)
+        {
+            var x=1;
+        }
+
+print( "XXX: \(fff()) \(m_str) \n" );
+
 var dbg0=f0();
 
 class BaseA
@@ -69,19 +77,33 @@ class ClassA //: BaseA, private BaseAA
         x:Int=0;
     }
 
-    constructor( xValue: Int ) : BaseA(0) {}
+    constructor( xValue: Int ) //: BaseA(0)
+    {
+        m_int = 10;
+        m_str = "str";
+    }
 
     m_int: Int;
     private m_str: String;
 
     func fPrint()
     {
-        print( "ClassA: \(m_int) \(m_str) \n" );
+        print( "ClassA: \(m_int()) \(m_str) \n" );
+        var x=0
+        if (x)
+        {
+            var x=1;
+        }
     }
 }
 
+var a2: ClassA;
+a2.fPrint();
+
+
 func f0()
 {
+    class X {}
     return 0;
 }
 

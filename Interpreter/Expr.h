@@ -165,6 +165,7 @@ inline void evalPrint( double number )
 }
 
 
+// Block
 struct ExpressionList: public Expression
 {
     std::list<Expression*>  m_list;
@@ -398,9 +399,9 @@ struct BinaryOpExpression: public Expression
     }
 };
 
-struct ExpressionVarDecl: public Expression
+struct VarDeclaration: public Expression
 {
-    ExpressionVarDecl( const Token& token, const std::string& varType ) : Expression(token), m_identifierName(token.lexeme), m_type(varType) {}
+    VarDeclaration( const Token& token, const std::string& varType ) : Expression(token), m_identifierName(token.lexeme), m_type(varType) {}
     
     std::string   m_identifierName;
     std::string   m_type;
@@ -419,7 +420,7 @@ struct ExpressionVarDecl: public Expression
             
             if ( runtime.m_localVarStack.empty() )
             {
-                runtime.m_globalVarMap[m_identifierName] = value;
+                runtime.m_globalVariableMap[m_identifierName] = value;
             }
             else
             {
@@ -432,7 +433,7 @@ struct ExpressionVarDecl: public Expression
 
         if ( runtime.m_localVarStack.empty() )
         {
-            runtime.m_globalVarMap[m_identifierName] = gNullObject;
+            runtime.m_globalVariableMap[m_identifierName] = gNullObject;
         }
         else
         {
@@ -487,7 +488,7 @@ struct Identifier : public Expression
             }
         }
         
-        if ( auto it = runtime.m_globalVarMap.find(m_name); it != runtime.m_globalVarMap.end() )
+        if ( auto it = runtime.m_globalVariableMap.find(m_name); it != runtime.m_globalVariableMap.end() )
         {
             return it->second;
         }
@@ -601,7 +602,7 @@ struct FuncDefinition : public Expression
     
     ObjectValue execute( Runtime& runtime ) override
     {
-        auto result = runtime.m_funcMap.emplace( m_name, this);
+        auto result = runtime.m_namespace.m_functionMap.emplace( m_name, this);
         if ( result.second )
         {
             // we added function
@@ -624,7 +625,7 @@ struct ClassDefinition : public Expression
     struct VarInfo
     {
         bool                m_isPrivate;
-        ExpressionVarDecl*  m_var;
+        VarDeclaration*  m_var;
     };
     
     struct ConstructorInfo: FuncDefinition
@@ -705,7 +706,7 @@ struct FunctionCall: public Expression
     ObjectValue execute( Runtime& runtime ) override
     {
         LOG("execute function?: " << m_functionName )
-        if ( auto it = runtime.m_funcMap.find( m_functionName ); it == runtime.m_funcMap.end() )
+        if ( auto it = runtime.m_namespace.m_functionMap.find( m_functionName ); it == runtime.m_namespace.m_functionMap.end() )
         {
             RUNTIME_EX2( std::string("Undefined function: ") + m_functionName );
         }
