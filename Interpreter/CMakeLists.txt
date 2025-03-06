@@ -11,6 +11,7 @@ add_definitions(-DDEBUG)
 
 add_executable(Interpreter
   main.cpp
+  test.h
 
   Runtime.h
   Runtime.cpp

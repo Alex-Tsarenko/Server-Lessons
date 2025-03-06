@@ -228,7 +228,8 @@ public:
         //        Pass,
         
         static std::unordered_map<std::string,TokenType> map = {
-            {"class",ClassT},
+            {"namespace",NamespaceKw},
+            {"class",ClassKw},
             {"private",Private},
             {"var",Var},
             {"if",If},
@@ -284,7 +285,7 @@ public:
             case TokenType::Else:
             case TokenType::While:
             case TokenType::Func:
-            case TokenType::ClassT: {
+            case TokenType::ClassKw: {
                 m_isBlockLevel++;
                 break;
             }
@@ -310,6 +311,11 @@ public:
                 case 0:
                     break;
                 case ':':
+                    if ( ifNext(':') )
+                    {
+                        addToken( TokenType::ScopeResolutionOp, "::" );
+                        break;
+                    }
                     addToken( TokenType::Colon, ":" );
                     break;
                 case '(':

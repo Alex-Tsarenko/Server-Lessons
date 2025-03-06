@@ -4,6 +4,9 @@
 inline constexpr const char* gTokenTypeStrings[] = {
 "Begin",
     
+
+"NamespaceKw",
+"ScopeResolutionOp",
 "Class",
 "Private",
 "Var",

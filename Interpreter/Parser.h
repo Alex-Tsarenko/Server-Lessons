@@ -2,40 +2,15 @@
 
 #include "Expr.h"
 #include "Runtime.h"
+#include "Error.h"
 #include <stack>
 #include <cassert>
 
-struct syntax_error: public std::runtime_error
-{
-    std::string m_error;
-    int         m_line;
-    int         m_position;
-    int         m_endPosition;
-
-    syntax_error( const std::string& error, int line, int position, int end ) : std::runtime_error(error),
-      m_error(error),
-      m_line(line),
-      m_position(position),
-      m_endPosition(end)
-    {}
-
-    syntax_error( const std::string& error, const Token& token ) : std::runtime_error(error),
-      m_error( error ),
-      m_line( token.line ),
-      m_position( token.pos ),
-      m_endPosition( token.pos+token.lexeme.size() )
-    {}
-
-//    runtime_error(const runtime_error&);
-//    runtime_error& operator=(const runtime_error&);
-
-    ~syntax_error() override {}
-};
-
 struct Parser
 {
-    Runtime&    m_runtime;
-    
+    Namespace&              m_topLevelNamespace;
+    std::stack<Namespace*>  m_namespaceStack;
+
     std::vector<expr::Expression*>    m_program;
     std::vector<expr::Expression*>*   m_current;
 
@@ -59,8 +34,9 @@ struct Parser
     std::vector<Lexer*> m_nestedLexers;
     
 public:
-    Parser( Runtime& runtime ) : m_runtime(runtime)
+    Parser( Namespace& aNamespace ) : m_topLevelNamespace(aNamespace)
     {
+        m_namespaceStack.push( &m_topLevelNamespace );
     }
 
     ~Parser()
@@ -69,6 +45,11 @@ public:
         {
             delete lexer;
         }
+    }
+
+    Namespace& currentNamespace()
+    {
+        return *m_namespaceStack.top();
     }
 
     void onError( std::string errorText, int line, int pos ) {}
@@ -137,19 +118,21 @@ public:
         
         assert( tokens.size() > 0 );
         assert( tokenIs(Begin) );
-        shiftToNextToken();
+
+        // skip 'Begin'
+        m_tokenIt++;
 
         try
         {
             for(;;)
             {
-                skipNewLines(); //??
+                skipNewLines();
                 if ( isEof() )
                 {
                     break;
                 }
-                LOG("+it::: " << gTokenTypeStrings[m_tokenIt->type] )
-                if ( auto expr = parseStatement(); expr != nullptr )
+                LOG("-----------------------parseProgram: " << gTokenTypeStrings[m_tokenIt->type] )
+                if ( auto expr = parseStatement<true>(); expr != nullptr )
                 {
                     m_current->push_back( expr );
                 }
@@ -173,6 +156,65 @@ public:
 
 protected:
 
+    void _shiftToNextToken()
+    {
+        while( m_tokenIt->type == Newline || m_tokenIt->type == Comment )
+        {
+            m_tokenIt++;
+            if ( isEof() )
+            {
+                return;
+            }
+        }
+
+        do
+        {
+            m_tokenIt++;
+            LOG( "?? takeNextToken: " << m_tokenIt->lexeme)
+            if ( isEof() )
+            {
+                return;
+            }
+        }
+        // Убрать Newline-ы чтобы не мешали дальнейшему парсингу
+        while( m_tokenIt->type == Newline || m_tokenIt->type == Comment );
+    }
+
+    void _shiftToPrevToken()
+    {
+        assert( m_tokenIt->type != Begin );
+        m_tokenIt--;
+
+        while( m_tokenIt->type == Newline || m_tokenIt->type == Comment )
+        {
+            m_tokenIt--;
+        }
+    }
+
+
+    void _shiftToNextTokenIf( TokenType type )
+    {
+        _shiftToNextToken();
+        if ( m_tokenIt->type != type )
+        {
+            LOG( gTokenTypeStrings[m_tokenIt->type] )
+            throw syntax_error( std::string("expected: '")+gTokenTypeStrings[type]+"'",  *m_tokenIt );
+        }
+    }
+
+    bool _nextTokenIs( TokenType type )
+    {
+        return ((m_tokenIt+1) != m_tokenEnd)  &&  ((m_tokenIt+1)->type == type);
+    }
+
+    bool _prevTokenIs( TokenType type )
+    {
+        assert( m_tokenIt->type != Begin );
+        return ((m_tokenIt-1)->type == type);
+    }
+
+
+    template<bool isGlobal>
     expr::Expression* parseStatement()
     {
         skipNewLines();
@@ -187,14 +229,36 @@ protected:
             return nullptr;
         }
 
-        LOG( "m_tokenIt->type: " << gTokenTypeStrings[m_tokenIt->type] )
-        switch ( m_tokenIt->type ) 
+        LOG( "---------------PraseStatement: m_tokenIt->type: " << gTokenTypeStrings[m_tokenIt->type] )
+        switch ( m_tokenIt->type )
         {
             case Var:
-                return parseVar();
+            {
+                if constexpr (isGlobal)
+                {
+                    auto* varDef = parseVar();
+                    LOG( "global Var: " << varDef->m_identifierName )
+                    if ( auto result = currentNamespace().m_variableMap.emplace( varDef->m_identifierName, varDef ); !result.second )
+                    {
+                        throw syntax_error( std::string("duplicate variable name: "), varDef->m_token );
+                    }
+
+                    return nullptr;
+                }
+                auto* varDef = parseVar();
+                LOG( "local Var: " << varDef->m_identifierName )
+                return varDef;
+            }
             case Func:
-                //todo++ add to namespace
-                return parseFuncDef< expr::FuncDefinition >();
+            {
+                auto* funcDef = parseFuncDef< expr::FuncDefinition >();
+
+                if ( auto result = currentNamespace().m_functionMap.emplace( funcDef->m_name, funcDef ); !result.second )
+                {
+                    throw syntax_error( std::string("duplicate function name: "), funcDef->m_token );
+                }
+                return nullptr;
+            }
             case If:
                 return parseIf();
             case For:
@@ -203,16 +267,70 @@ protected:
                 return parseReturn();
             case Print:
                 return parsePrint();
-            case ClassT:
+            case NamespaceKw:
+            {
+                if constexpr (!isGlobal)
+                {
+                    throw syntax_error( "namespace is not allowed here", *m_tokenIt );
+                }
+                else
+                {
+                    parseNamespace();
+                    return nullptr;
+                }
+            }
+            case ClassKw:
             {
                 auto* classDefinition = parseClass();
-                //todo++ add to namespace
+                if ( auto result = currentNamespace().m_classMap.emplace( classDefinition->m_name, classDefinition ); !result.second )
+                {
+                    throw syntax_error( std::string("duplicate class name: "), classDefinition->m_token );
+                }
                 return classDefinition;
             }
             case Identifier:
-                if ( nextTokenIs(LeftParen) )
+                if ( _nextTokenIs(LeftParen) )
                 {
                     // function call
+                    //TODO!!!
+                    _shiftToPrevToken();
+                    return parseExpr(Semicolon);
+                }
+                else if ( _nextTokenIs(ScopeResolutionOp) )
+                {
+                    // namespace operation
+                    std::vector<Token*>   namespaceSpec;
+
+                    // N2::N1::var | N2::var
+                    _shiftToNextToken(); // skip N2
+                againScopeResolutionOp:
+                    _shiftToNextToken(); // skip ::
+                    
+                    if ( ! tokenIs(Identifier) )
+                    {
+                        throw syntax_error( std::string("expected identifier: "), *m_tokenIt );
+                    }
+
+                    if ( _nextTokenIs(ScopeResolutionOp) )
+                    {
+                        auto token = *m_tokenIt;
+                        namespaceSpec.push_back( &token );
+                        _shiftToNextToken(); // skip N1
+                        goto againScopeResolutionOp;
+                    }
+                    else
+                    {
+                        // func or variable
+                        if ( _nextTokenIs(LeftParen) )
+                        {
+                            // function call
+                            auto* funcDef = parseExpr(Semicolon);
+
+                        }
+
+                    }
+                    //TODO
+
                     //TODO!!!
                     return parseExpr(Semicolon);
                 }
@@ -220,7 +338,7 @@ protected:
                 {
                     // assignment
                     auto* assignment = new expr::AssignmentStatement( *m_tokenIt );
-                    shiftToNextToken( Assignment );
+                    _shiftToNextTokenIf( Assignment );
                     assignment->m_expr = parseExpr( Semicolon );
                     return assignment;
                 }
@@ -234,7 +352,7 @@ protected:
                 return nullptr;
 
             case Comment:
-                shiftToNextToken();
+                _shiftToNextToken();
                 return nullptr;
 
 
@@ -248,30 +366,6 @@ protected:
         return nullptr;
     }
 
-    void shiftToNextToken()
-    {
-        while( m_tokenIt->type == Newline || m_tokenIt->type == Comment )
-        {
-            m_tokenIt++;
-            if ( isEof() )
-            {
-                return;
-            }
-        }
-        
-        do
-        {
-            m_tokenIt++;
-            LOG( "?? takeNextToken: " << m_tokenIt->lexeme)
-            if ( isEof() )
-            {
-                return;
-            }
-        }
-        // Убрать Newline-ы чтобы не мешали дальнейшему парсингу
-        while( m_tokenIt->type == Newline || m_tokenIt->type == Comment );
-    }
-    
     void tokenBack()
     {
         assert( m_tokenIt->type != Begin );
@@ -286,16 +380,7 @@ protected:
 //        }
 //    }
     
-    void shiftToNextToken( TokenType type )
-    {
-        shiftToNextToken();
-        if ( m_tokenIt->type != type )
-        {
-            LOG( gTokenTypeStrings[m_tokenIt->type] )
-            throw syntax_error( std::string("expected: '")+gTokenTypeStrings[type]+"'",  *m_tokenIt );
-        }
-    }
-    
+
     bool isEof()
     {
         return m_tokenIt->type == EndOfFile;
@@ -313,17 +398,6 @@ protected:
     bool tokenIs( TokenType type )
     {
         return m_tokenIt->type == type;
-    }
-    
-    bool nextTokenIs( TokenType type )
-    {
-        return ((m_tokenIt+1) != m_tokenEnd)  &&  ((m_tokenIt+1)->type == type);
-    }
-    
-    bool prevTokenIs( TokenType type )
-    {
-        assert( m_tokenIt->type != Begin );
-        return ((m_tokenIt-1)->type == type);
     }
     
     void tokenMustBeType()
@@ -359,8 +433,11 @@ protected:
         
         auto* result = constructExpr();
         
-        assert( m_tokenIt->type==endToken );
-        shiftToNextToken();
+        if ( m_tokenIt->type!=endToken )
+        {
+            throw syntax_error( std::string("expected ','"), *m_tokenIt );
+        }
+        _shiftToNextToken();
         //result->printExpr();
         return result;
     }
@@ -441,7 +518,7 @@ protected:
         
         while( !theEnd )
         {
-            shiftToNextToken();
+            _shiftToNextToken();
 
             LOG( "parseExpr: " << gTokenTypeStrings[m_tokenIt->type] << " " << m_tokenIt->lexeme );
             switch( m_tokenIt->type )
@@ -450,14 +527,39 @@ protected:
                 {
                     LOG( "Identifier: " << m_tokenIt->lexeme )
 
-                    if ( nextTokenIs( LeftParen ) )
+                    if ( _nextTokenIs( LeftParen ) )
                     {
                         LOG( "@@@ ??? Func_Call to stack: " << m_tokenIt->lexeme )
 
                         // Function call
                         m_funcStack.push_back( new expr::FunctionCall( { *m_tokenIt }  ) );
-                        shiftToNextToken();
+                        _shiftToNextToken();
                         m_operationStack.push_back( m_funcStack.back() );
+                    }
+                    else if ( _nextTokenIs(ScopeResolutionOp) ) // ::
+                    {
+                        std::vector<Token*>   namespaceSpec;
+
+                        // N2::N1::var | N2::var
+                        _shiftToNextToken(); // skip N2
+                    againScopeResolutionOp:
+                        _shiftToNextToken(); // skip ::
+                        if ( ! tokenIs(Identifier) )
+                        {
+                            throw syntax_error( std::string("expected identifier: "), *m_tokenIt );
+                        }
+                        if ( _nextTokenIs(ScopeResolutionOp) )
+                        {
+                            auto token = *m_tokenIt;
+                            namespaceSpec.push_back( &token );
+                            _shiftToNextToken(); // skip N1
+                            goto againScopeResolutionOp;
+                        }
+                        else
+                        {
+                            // func or variable
+                        }
+                        //TODO
                     }
                     else
                     {
@@ -516,13 +618,13 @@ protected:
                 {
                     // Before '(' must be <function name> or '=' or <sign/operation>
                     if ( operatorTokenTable[(m_tokenIt-1)->type] == 0
-                             && ! prevTokenIs( LeftParen )
-                             && ! prevTokenIs( Comma )
-                             && ! prevTokenIs( Assignment ) )
+                             && ! _prevTokenIs( LeftParen )
+                             && ! _prevTokenIs( Comma )
+                             && ! _prevTokenIs( Assignment ) )
                     {
                         throw syntax_error( std::string("unexpected left parenthesis: "),  *m_tokenIt );
                     }
-                    if ( nextTokenIs(RightParen) )
+                    if ( _nextTokenIs(RightParen) )
                     {
                         throw syntax_error( std::string("empty closure expression (): "),  *m_tokenIt );
                     }
@@ -538,7 +640,7 @@ protected:
                     }
 
                     // handle 'function call' w/o arguments
-                    if ( m_operationStack.back()->type() == expr::et_func_call && prevTokenIs(LeftParen) )
+                    if ( m_operationStack.back()->type() == expr::et_func_call && _prevTokenIs(LeftParen) )
                     {
                         if (!m_funcStack.empty() )
                         {
@@ -693,7 +795,8 @@ protected:
         
         auto* expr = m_output.back();
         m_output.pop_back();
-        
+        LOG( "m_output.size:" << m_output.size() )
+
         switch( expr->type() )
         {
             case expr::et_identifier:
@@ -749,10 +852,51 @@ protected:
                 auto& token = expr->m_token;
                 throw syntax_error( std::string("unexpexted et_undefined: "), *m_tokenIt );
             }
+            case expr::et_assignment:
+                break;
+            case expr::et_namespace_op:
+                break;
+            case expr::et_return:
+                break;
         }
         return expr;
     }
     
+    void parseNamespace()
+    {
+        _shiftToNextTokenIf( Identifier );
+        const Token& namespaceName = *m_tokenIt;
+
+        auto it = currentNamespace().m_innerNamespaceMap.find( namespaceName.lexeme );
+        if ( it != currentNamespace().m_innerNamespaceMap.end() )
+        {
+            m_namespaceStack.push( &it->second );
+        }
+        else
+        {
+            currentNamespace().m_innerNamespaceMap[namespaceName.lexeme] = { namespaceName.lexeme, &currentNamespace() };
+            m_namespaceStack.push( &currentNamespace().m_innerNamespaceMap[namespaceName.lexeme] );
+        }
+
+        _shiftToNextTokenIf( LeftBrace );
+        _shiftToNextToken();
+
+        for(;;)
+        {
+            if ( tokenIs(RightBrace) )
+            {
+                break;
+            }
+            if ( tokenIs(EndOfFile) )
+            {
+                throw syntax_error( "unexpected end of file, expected '}' of namespace", *m_tokenIt );
+            }
+            parseStatement<true>();
+        }
+        _shiftToNextToken();
+        m_namespaceStack.pop();
+    }
+
     expr::VarDeclaration* parseVar( bool isClassMember = false )
     {
         //
@@ -760,18 +904,18 @@ protected:
         //
         if ( !isClassMember )
         {
-            shiftToNextToken( Identifier );
+            _shiftToNextTokenIf( Identifier );
         }
         
         const Token& varName = *m_tokenIt;
         std::string varType;
         expr::Expression* expr = nullptr;
-        
-        shiftToNextToken();
+
+        _shiftToNextToken();
         
         if ( tokenIs( Colon ) )
         {
-            shiftToNextToken();
+            _shiftToNextToken();
             if ( ! tokenIs(Identifier) && ! tokenIs(Int) && ! tokenIs(Float) && ! tokenIs(String) )
             {
                 throw syntax_error( std::string("expected type: "), *m_tokenIt );
@@ -779,7 +923,7 @@ protected:
             LOG( "After colon (var type): " << m_tokenIt->lexeme );
             varType = m_tokenIt->lexeme;
 
-            shiftToNextToken();
+            _shiftToNextToken();
         }
 
         if ( tokenIs( Assignment ) )
@@ -790,7 +934,7 @@ protected:
 
         if ( tokenIs( Semicolon ) )
         {
-            shiftToNextToken();
+            _shiftToNextToken();
         }
         
         auto* varExpr = new expr::VarDeclaration{varName,varType};
@@ -801,8 +945,8 @@ protected:
 
     expr::Expression* parsePrint()
     {
-        shiftToNextToken( LeftParen );
-        shiftToNextToken( StringLiteral );
+        _shiftToNextTokenIf( LeftParen );
+        _shiftToNextTokenIf( StringLiteral );
         
         auto& argument = m_tokenIt->lexeme;
         
@@ -811,16 +955,16 @@ protected:
         // print( "x1=\(x1)d" )
         // std::cout << "x1=" << x1 << "d";
 
-        shiftToNextToken( RightParen );
-        shiftToNextToken( Semicolon );
-        shiftToNextToken();
+        _shiftToNextTokenIf( RightParen );
+        _shiftToNextTokenIf( Semicolon );
+        _shiftToNextToken();
 
         return new expr::PrintFuncCall{ std::move(arguments) };
     }
     
     expr::ClassDefinition* parseClass( expr::ClassDefinition* outerClass = nullptr )
     {
-        shiftToNextToken( Identifier );
+        _shiftToNextTokenIf( Identifier );
         const Token& className = *m_tokenIt;
         LOG("className: " << className.lexeme )
         
@@ -836,12 +980,12 @@ protected:
         }
 
         // Parse base classes
-        if ( nextTokenIs(Colon) )
+        if ( _nextTokenIs(Colon) )
         {
-            shiftToNextToken( Colon );
+            _shiftToNextTokenIf( Colon );
             
             bool firstBaseClass = true;
-            while( firstBaseClass || nextTokenIs(Comma) )
+            while( firstBaseClass || _nextTokenIs(Comma) )
             {
                 if ( firstBaseClass )
                 {
@@ -849,15 +993,15 @@ protected:
                 }
                 else
                 {
-                    shiftToNextToken( Comma );
+                    _shiftToNextTokenIf( Comma );
                 }
-                shiftToNextToken();
+                _shiftToNextToken();
                 
                 bool isPrivate = false;
                 if ( tokenIs(Private) )
                 {
                     isPrivate = true;
-                    shiftToNextToken();
+                    _shiftToNextToken();
                 }
                 
                 if ( ! tokenIs(Identifier) )
@@ -870,10 +1014,10 @@ protected:
             }
         }
 
-        shiftToNextToken( LeftBrace );
+        _shiftToNextTokenIf( LeftBrace );
 
         // parse members
-        shiftToNextToken();
+        _shiftToNextToken();
         while( m_tokenIt->type != RightBrace )
         {
             LOG("???: " << m_tokenIt->lexeme );
@@ -883,16 +1027,17 @@ protected:
             if ( tokenIs(Private) )
             {
                 isPrivate = true;
-                shiftToNextToken();
+                _shiftToNextToken();
             }
             
+            //todo++ var&
             if ( tokenIs(Var) )
             {
                 throw syntax_error( "unexpected 'var' keyword inside class: ", *m_tokenIt );
             }
             else if ( tokenIs(Identifier) )
             {
-                if ( nextTokenIs(LeftParen) )
+                if ( _nextTokenIs(LeftParen) )
                 {
                     // parse constructor
                     if ( ! tokenIs(Identifier) || m_tokenIt->lexeme != "constructor" )
@@ -915,7 +1060,7 @@ protected:
                 auto* funcDef = parseFuncDef< expr::FuncDefinition >();
                 classDefinition->m_funcs.push_back( {isPrivate,funcDef} );
             }
-            else if ( tokenIs(ClassT) )
+            else if ( tokenIs(ClassKw) )
             {
                 auto* innerClass = parseClass();
                 auto result = classDefinition->m_innerClasses.emplace( innerClass->m_name, innerClass );
@@ -936,7 +1081,7 @@ protected:
         }
         
         assert( m_tokenIt->type == RightBrace );
-        shiftToNextToken();
+        _shiftToNextToken();
         
         return classDefinition;
     }
@@ -998,8 +1143,8 @@ protected:
                     m_nestedLexers.push_back(&exprLexer);
                     
                     exprLexer.run();
-                    Parser parser(m_runtime);
-                    
+                    Parser parser(m_topLevelNamespace);
+
                     LOG("----ParsePrintArgument: " << std::string(exprBegin, ptr) );
 //                    for( auto& token: exprLexer.tokens() )
 //                    {
@@ -1030,10 +1175,10 @@ protected:
         if constexpr (std::is_same<T, expr::FuncDefinition>::value)
         {
             // Save function name
-            shiftToNextToken();
+            _shiftToNextToken();
             func->m_name = m_tokenIt->lexeme;
 
-            if ( auto it = m_runtime.m_namespace.m_functionMap.find(func->m_name); it != m_runtime.m_namespace.m_functionMap.end() )
+            if ( auto it = currentNamespace().m_functionMap.find(func->m_name); it != currentNamespace().m_functionMap.end() )
             {
                 throw syntax_error( std::string("function with same name already exist: "), *m_tokenIt );
             }
@@ -1041,8 +1186,8 @@ protected:
         
         //m_runtime.m_funcMap[func->m_name] = func;
         
-        shiftToNextToken( LeftParen );
-        shiftToNextToken();
+        _shiftToNextTokenIf( LeftParen );
+        _shiftToNextToken();
         
         // Parse arguments
         int argumentNumber = 0;
@@ -1060,33 +1205,33 @@ protected:
             // Argument name
             std::string name = m_tokenIt->lexeme;
             
-            shiftToNextToken( Colon );
+            _shiftToNextTokenIf( Colon );
 
             // Parse argument type
-            shiftToNextToken();
+            _shiftToNextToken();
             tokenMustBeType();
             
             LOG( "argument: " << name << " Type:" << m_tokenIt->lexeme )
             func->m_argList.emplace_back( expr::Argument{std::move(name), m_tokenIt->lexeme} );
 
-            shiftToNextToken();
+            _shiftToNextToken();
             if ( ! tokenIs( Comma ) )
             {
                 break;
             }
-            shiftToNextToken();
+            _shiftToNextToken();
         }
         
         if constexpr (std::is_same<T, expr::ClassDefinition::ConstructorInfo>::value)
         {
-            if ( nextTokenIs(Colon) )
+            if ( _nextTokenIs(Colon) )
             {
-                shiftToNextToken();
-                while( ! nextTokenIs(LeftBrace) )
+                _shiftToNextToken();
+                while( ! _nextTokenIs(LeftBrace) )
                 {
-                    shiftToNextToken( Identifier );
+                    _shiftToNextTokenIf( Identifier );
                     auto className = m_tokenIt->lexeme;
-                    shiftToNextToken( LeftParen );
+                    _shiftToNextTokenIf( LeftParen );
                     while( ! tokenIs(RightParen) )
                     {
                         auto* expr = parseExpr( RightParen );
@@ -1097,25 +1242,25 @@ protected:
             }
         }
         
-        shiftToNextToken( LeftBrace );
+        _shiftToNextTokenIf( LeftBrace );
         m_blockLevel++;
         
-        shiftToNextToken();
+        _shiftToNextToken();
         while( m_tokenIt->type != RightBrace )
         {
-            func->m_body.m_list.push_back( parseStatement() );
+            func->m_body.m_list.push_back( parseStatement<false>() );
         }
 
         m_blockLevel--;
         
-        shiftToNextToken();
+        _shiftToNextToken();
         
         return func;
     }
     
     expr::Expression* parseIf()
     {
-        shiftToNextToken( LeftParen );
+        _shiftToNextTokenIf( LeftParen );
         //???
         throw syntax_error( std::string("TODO: "), *m_tokenIt );
         return nullptr;

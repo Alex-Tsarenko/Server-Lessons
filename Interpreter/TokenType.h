@@ -5,7 +5,9 @@ enum TokenType
     Begin,
 
     // Keywords
-    ClassT,
+    NamespaceKw,
+    ScopeResolutionOp,
+    ClassKw,
     Private,
     Var,
     Print, 
