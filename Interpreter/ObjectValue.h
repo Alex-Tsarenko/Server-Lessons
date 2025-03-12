@@ -71,7 +71,7 @@ struct ObjectValue
             case ot_bool: return m_boolValue ? "<bool:true>" : "<bool:false>";
             case ot_int:  return std::string("<Int:") + std::to_string(m_intValue) + ">";
             case ot_double: return std::string("<Double:") + std::to_string(m_doubleValue) + ">";
-            case ot_string: return std::string("<String:") + *m_stringValue + ">";;
+            case ot_string: return std::string("<String:'") + *m_stringValue + "'>";;
         }
         return "<unknown-type>";
     }

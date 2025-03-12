@@ -57,8 +57,13 @@ void Runtime::initGlobalVariables()
 
 void Runtime::run( const std::vector<expr::Expression*>& code, const std::string& sourceCode )
 {
-    for( auto expr: code )
+    auto mainRef = m_topLevelNamespace.m_functionMap.find("main");
+    if ( mainRef == m_topLevelNamespace.m_functionMap.end() )
     {
-        expr->execute( *this, false );
+        throw runtime_ex( "undefined function main" );
     }
+
+    auto mainCall = expr::FunctionCall( mainRef->second->m_token );
+    mainCall.m_functionName = "main";
+    mainCall.execute( *this, false );
 }

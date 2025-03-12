@@ -222,6 +222,8 @@ struct PrintFuncCall: public Expression
         {
             LOG("PrintFunc item: " << (void*)expr )
             ObjectValue value = expr->execute( runtime, isGlobal );
+            LOG("PrintFunc item: " << value.pstring() )
+
             value.toStream( std::cout );
         }
        
@@ -744,7 +746,7 @@ struct FunctionCall: public Expression
     ObjectValue execute( Runtime& runtime, bool isGlobal ) override
     {
         Namespace* namespacePtr = &runtime.m_topLevelNamespace;
-        execute( runtime, namespacePtr, isGlobal );
+        return execute( runtime, namespacePtr, isGlobal );
     }
 
     ObjectValue execute( Runtime& runtime, Namespace* namespacePtr, bool isGlobal )
@@ -758,7 +760,7 @@ struct FunctionCall: public Expression
         else
         {
             FuncDefinition* fDefinition = it->second;
-            execute( runtime, fDefinition, isGlobal );
+            return execute( runtime, fDefinition, isGlobal );
         }
     }
 

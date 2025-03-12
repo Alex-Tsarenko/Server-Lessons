@@ -1,9 +1,10 @@
 
-func f11() { return 110; }
+//func f11() { return 110; }
 
 func main()
 {
-    f11();
+    var x = 10 + f(4,a*(8+3),x-f12()) + 11;
+//    print("\(f11())";
 //    A1::A2::A3::f(0);
 }
 

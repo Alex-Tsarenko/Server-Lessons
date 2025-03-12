@@ -21,8 +21,8 @@ struct Parser
     
     std::vector<expr::Expression*>      m_output;
     std::vector<expr::Expression*>      m_operationStack;
-    std::vector<expr::FunctionCall*>      m_funcStack;
-    
+    //std::vector<expr::FunctionCall*>      m_funcStack;
+
     bool unariOperatorTokenTable[EndOfTokenType] = {false};
     char operatorTokenTable[EndOfTokenType]      = {0};
 
@@ -63,10 +63,10 @@ public:
         
         assert( tokens.size() > 0 );
         assert( tokenIs(Begin) );
+        _shiftToNextToken();
 
         try
         {
-//            return parseExpr( RightParen );
             return parseExpr( EndOfFile );
         }
         catch( syntax_error& error )
@@ -126,7 +126,7 @@ public:
         {
             for(;;)
             {
-                skipNewLines();
+                skipNewLinesAndComments();
                 if ( isEof() )
                 {
                     break;
@@ -264,6 +264,7 @@ protected:
             case For:
                 assert(0);
             case Return:
+                _shiftToNextToken();
                 return parseReturn();
             case Print:
                 return parsePrint();
@@ -291,9 +292,6 @@ protected:
             case Identifier:
                 if ( _nextTokenIs(LeftParen) )
                 {
-                    // function call
-                    //TODO!!!
-                    _shiftToPrevToken();
                     return parseExpr(Semicolon);
                 }
                 else if ( _nextTokenIs(ScopeResolutionOp) )
@@ -325,12 +323,10 @@ protected:
                         {
                             // function call
                             auto* funcDef = parseExpr(Semicolon);
-
+                            return funcDef;
                         }
 
                     }
-                    //TODO
-
                     //TODO!!!
                     return parseExpr(Semicolon);
                 }
@@ -395,6 +391,14 @@ protected:
         }
     }
 
+    void skipNewLinesAndComments()
+    {
+        while( !isEof() && (m_tokenIt->type == Newline || m_tokenIt->type == Comment))
+        {
+            m_tokenIt++;
+        }
+    }
+
     bool tokenIs( TokenType type )
     {
         return m_tokenIt->type == type;
@@ -417,28 +421,34 @@ protected:
     
     expr::Expression* parseExpr( TokenType endToken )
     {
+        // 1-st pass of shunting-yard algorithm
         doParseExpr( endToken );
-        
+
+        while( !m_operationStack.empty() )
+        {
+            if ( m_operationStack.back() != &leftParen )
+            {
+                m_output.push_back( m_operationStack.back() );
+            }
+            m_operationStack.pop_back();
+        }
+
         for( auto i = 0; i<m_output.size(); i++)
         {
             if ( m_output[i]->type() == expr::et_func_call )
             {
-                LOG( "### func_call: " << m_output[i]->m_token.lexeme << ": " << ((expr::FunctionCall*)m_output[i])->m_parameters.size() );
+                LOG( "##parseExpr# func_call: " << m_output[i]->m_token.lexeme << ": " << ((expr::FunctionCall*)m_output[i])->m_parameters.size() );
             }
             else
             {
-                LOG( "### dbg: " <<  gTokenTypeStrings[m_output[i]->m_token.type] << " " << m_output[i]->m_token.lexeme.c_str() );
+                LOG( "##parseExpr# dbg: " <<  gTokenTypeStrings[m_output[i]->m_token.type] << " " << m_output[i]->m_token.lexeme.c_str() );
             }
         }
         
+        // 2-d pass of shunting-yard algorithm
         auto* result = constructExpr();
         
-        if ( m_tokenIt->type!=endToken )
-        {
-            throw syntax_error( std::string("expected ','"), *m_tokenIt );
-        }
-        _shiftToNextToken();
-        //result->printExpr();
+        result->printExpr();
         return result;
     }
     
@@ -463,10 +473,10 @@ protected:
         m_operationStack.pop_back();
     }
     
-    void doParseExpr( TokenType endTokenType )
+    void initParseExprTables()
     {
         // https://en.cppreference.com/w/cpp/language/operator_precedence
-        
+
         if ( ! unariOperatorTokenTable[Not] )
         {
             unariOperatorTokenTable[Not] = true;
@@ -507,95 +517,25 @@ protected:
             operatorTokenTable[BitOr] = 13;
             operatorTokenTable[And] = 14;
             operatorTokenTable[Or] = 15;
-            
+
             operatorTokenTable[Comma] = 17;
         }
+
+    }
+
+    void doParseExpr( TokenType endTokenType )
+    {
+        initParseExprTables();
 
         assert( m_output.size() == 0 );
         assert( m_operationStack.size() == 0 );
 
-        bool theEnd = false;
-        
-        while( !theEnd )
+        for( ;; _shiftToNextToken() )
         {
-            _shiftToNextToken();
+            LOG( "@@@ doParseExpr: " << gTokenTypeStrings[m_tokenIt->type] << " " << m_tokenIt->lexeme );
 
-            LOG( "parseExpr: " << gTokenTypeStrings[m_tokenIt->type] << " " << m_tokenIt->lexeme );
             switch( m_tokenIt->type )
             {
-                case Identifier:
-                {
-                    LOG( "Identifier: " << m_tokenIt->lexeme )
-
-                    if ( _nextTokenIs( LeftParen ) )
-                    {
-                        LOG( "@@@ ??? Func_Call to stack: " << m_tokenIt->lexeme )
-
-                        // Function call
-                        m_funcStack.push_back( new expr::FunctionCall( { *m_tokenIt }  ) );
-                        _shiftToNextToken();
-                        m_operationStack.push_back( m_funcStack.back() );
-                    }
-                    else if ( _nextTokenIs(ScopeResolutionOp) ) // ::
-                    {
-                        std::vector<Token*>   namespaceSpec;
-
-                        // N2::N1::var | N2::var
-                        _shiftToNextToken(); // skip N2
-                    againScopeResolutionOp:
-                        _shiftToNextToken(); // skip ::
-                        if ( ! tokenIs(Identifier) )
-                        {
-                            throw syntax_error( std::string("expected identifier: "), *m_tokenIt );
-                        }
-                        if ( _nextTokenIs(ScopeResolutionOp) )
-                        {
-                            auto token = *m_tokenIt;
-                            namespaceSpec.push_back( &token );
-                            _shiftToNextToken(); // skip N1
-                            goto againScopeResolutionOp;
-                        }
-                        else
-                        {
-                            // func or variable
-                        }
-                        //TODO
-                    }
-                    else
-                    {
-                        // Identifier
-                        LOG( "@@@ Identifier to output: " << m_tokenIt->lexeme )
-
-                        m_output.push_back( new expr::Identifier{ *m_tokenIt } );
-                    }
-                    break;
-                }
-                case Comma:
-                {
-                    LOG( "@@@ Coma: " << m_tokenIt->lexeme )
-                    if ( !m_funcStack.empty() )
-                    {
-                        LOG( "@@@ Coma: fn: " << m_funcStack.back()->m_functionName )
-
-                        m_funcStack.back()->m_parameters.push_back(nullptr);
-                    }
-
-                    
-                    for(;;)
-                    {
-                        if ( m_operationStack.empty() )
-                        {
-                            throw syntax_error( std::string("unexpected ',': "),  *m_tokenIt );
-                        }
-                        if ( m_operationStack.back()->type() == expr::et_func_call )
-                        {
-                            break;
-                        }
-                        moveOpToOutput();
-                    }
-                    //m_operationStack.push_back( &comma );
-                    break;
-                }
                 case Int:
                 {
                     LOG( "@@@ Int to output: " << m_tokenIt->lexeme )
@@ -614,122 +554,106 @@ protected:
                     m_output.push_back( new expr::String{ *m_tokenIt } );
                     break;
                 }
-                case LeftParen:
+                case Identifier:
                 {
-                    // Before '(' must be <function name> or '=' or <sign/operation>
-                    if ( operatorTokenTable[(m_tokenIt-1)->type] == 0
-                             && ! _prevTokenIs( LeftParen )
-                             && ! _prevTokenIs( Comma )
-                             && ! _prevTokenIs( Assignment ) )
+                    LOG( "@@@ Identifier: " << m_tokenIt->lexeme )
+
+                    //
+                    // Проверяем, является ли идентификатор функцией
+                    //
+
+                    if ( _nextTokenIs( LeftParen ) )
                     {
-                        throw syntax_error( std::string("unexpected left parenthesis: "),  *m_tokenIt );
+                        LOG( "@@@ ??? Func_Call to stack: " << m_tokenIt->lexeme )
+
+                        // Function call
+                        //m_funcStack.push_back( new expr::FunctionCall( { *m_tokenIt }  ) );
+                        m_operationStack.push_back( new expr::FunctionCall( { *m_tokenIt } ));
+
+                        // skip '('
+                        _shiftToNextToken();
                     }
-                    if ( _nextTokenIs(RightParen) )
+                    else
                     {
-                        throw syntax_error( std::string("empty closure expression (): "),  *m_tokenIt );
+                        // Identifier
+                        LOG( "@@@ Identifier to output: " << m_tokenIt->lexeme )
+
+                        m_output.push_back( new expr::Identifier{ *m_tokenIt } );
                     }
-                    LOG( "@@@ leftParen to stack: " )
-                    m_operationStack.push_back( &leftParen );
+                    break;
+                }
+                case Comma:
+                {
+                    LOG( "@@@ Coma: " << m_tokenIt->lexeme )
+
+                    // Выталкиваем операторы до открывающей скобки текущего аргумента
+                    while ( !m_operationStack.empty() &&
+                           (m_operationStack.back() != &leftParen && m_operationStack.back()->type() != expr::et_func_call) )
+                    {
+                        m_output.push_back( m_operationStack.back() );
+                        m_operationStack.pop_back();
+                    }
+
+                    if ( m_operationStack.empty() )
+                    {
+                        //TODO
+                        return;
+                    }
+
+                    // Увеличиваем счетчик аргументов текущей функции верхнего уровня
+                    if ( m_operationStack.back()->type() == expr::et_func_call )
+                    {
+                        auto* functionCall = ((expr::FunctionCall*)m_operationStack.back());
+                        functionCall->m_parameters.push_back(nullptr);
+                    }
+
                     break;
                 }
                 case RightParen:
                 {
-                    if ( m_operationStack.empty() && endTokenType==RightParen )
+                    // Выталкиваем операторы до открывающей скобки текущего аргумента
+                    while ( !m_operationStack.empty() &&
+                           (m_operationStack.back() != &leftParen && m_operationStack.back()->type() != expr::et_func_call) )
                     {
+                        m_output.push_back( m_operationStack.back() );
+                        m_operationStack.pop_back();
+                    }
+
+                    if ( m_operationStack.empty() )
+                    {
+                        //TODO
                         return;
                     }
 
-                    // handle 'function call' w/o arguments
-                    if ( m_operationStack.back()->type() == expr::et_func_call && _prevTokenIs(LeftParen) )
+                    if ( m_operationStack.back()->type() != expr::et_func_call )
                     {
-                        if (!m_funcStack.empty() )
-                        {
-                            LOG( "@@@ ???: from stack(): " << m_funcStack.back()->m_functionName )
-                            m_funcStack.pop_back();
-                        }
-
-
-                        break;
+                        m_operationStack.pop_back();
                     }
-                    
-                    for(;;)
+                    else
                     {
-                        if ( m_operationStack.size() == 0 )
+                        auto* functionCall = ((expr::FunctionCall*)(m_operationStack.back()));
+
+                        // Всегда увеличиваем счетчик параметров, если это не вызов функции без параметров
+                        if ( /*functionCall->m_parameters.size() > 0 ||*/ !_prevTokenIs(LeftParen) )
                         {
-                            if ( endTokenType == RightParen )
-                            {
-                                //TODO ???
-                                while( m_operationStack.size() > 0 )
-                                {
-                                    moveOpToOutput();
-                                }
-                                return;
-                            }
-                            
-                            throw syntax_error( std::string("unexpected right parenthesis: "),  *m_tokenIt );
-                        }
-                        
-//                        // Move ',' from op-stack to operand-stack
-//                        if ( m_operationStack.back() == &comma )
-//                        {
-//                            assert( m_output.size() > 0 );
-//                            if( m_funcStack.size() == 0 )
-//                            {
-//                                throw syntax_error( std::string("unexpected coma: "), *m_tokenIt );
-//                            }
-//                            m_funcStack.back()->m_parameters.push_back( nullptr );
-//                            moveOpToOutput();
-//                        }
-//
-//                        // Replace 'leftFuncParen' by fubction call
-//                        else 
-                        
-                        if ( m_operationStack.back()->type() == expr::et_func_call )
-                        {
-                            m_funcStack.back()->m_parameters.push_back( nullptr );
-                            moveOpToOutput();
-                            break;
-                        }
-                        
-                        else if ( m_operationStack.back() == &leftParen )
-                        {
-                            //output.push_back( pStack.back() );
-                            m_operationStack.pop_back();
-                            break;
+                            functionCall->m_parameters.push_back(nullptr);
                         }
 
-                        else
-                        {
-                            moveOpToOutput();
-                        }
-                    }
-                    
-                    if (!m_funcStack.empty() )
-                    {
-                        LOG( "@@@ ???: from stack(...): " << m_funcStack.back()->m_functionName )
-                        m_funcStack.pop_back();
+                        m_output.push_back( m_operationStack.back() );
+                        m_operationStack.pop_back();
                     }
 
                     break;
                 }
+                case LeftParen:
+                {
+                    m_operationStack.push_back( &leftParen );
+                    break;
+                }
                 case Semicolon:
                 {
-                    while( m_operationStack.size() > 0 )
-                    {
-//                        if ( m_operationStack.back() == &leftParen )
-//                        {
-//                            throw syntax_error( std::string("missing ')': "), *m_tokenIt );
-//                        }
-                        LOG( "--?? " << (m_operationStack.size()-1) << " " << m_operationStack.back()->m_token.lexeme )
-                        moveOpToOutput();
-                    }
-                    
-                    if ( m_output.size() == 0 )
-                    {
-                        throw syntax_error( std::string("expected expression: "),  *m_tokenIt );
-                    }
-
-                    return;
+                    //TODO
+                    break;
                 }
                 case LeftSqBracket:
                 {
@@ -749,14 +673,10 @@ protected:
                     auto precedence = operatorTokenTable[m_tokenIt->type];
                     if ( precedence == 0 )
                     {
-                        if ( m_tokenIt->type != EndOfFile )
-                        {
-                            tokenBack();
-                        }
-                        theEnd = true;
-                        break;
+                        //TODO
+                        return;
                     }
-                    
+
                     while( m_operationStack.size() > 0 )
                     {
                         // If current 'operator' has precedence >= m_operationStack.back()
@@ -850,6 +770,7 @@ protected:
             case expr::et_undefined:
             {
                 auto& token = expr->m_token;
+                LOG( std::string("unexpexted et_undefined: " + m_tokenIt->lexeme ) )
                 throw syntax_error( std::string("unexpexted et_undefined: "), *m_tokenIt );
             }
             case expr::et_assignment:
@@ -929,6 +850,7 @@ protected:
         if ( tokenIs( Assignment ) )
         {
             // skip assignment
+            _shiftToNextToken();
             expr = parseExpr( Semicolon );
         }
 
@@ -955,7 +877,7 @@ protected:
         // print( "x1=\(x1)d" )
         // std::cout << "x1=" << x1 << "d";
 
-        _shiftToNextTokenIf( RightParen );
+        //_shiftToNextTokenIf( RightParen );
         _shiftToNextTokenIf( Semicolon );
         _shiftToNextToken();
 
@@ -1152,7 +1074,10 @@ protected:
 //                    }
                     auto* expression = parser.parsePrintExpr( exprBegin, exprLexer.tokens() );
                     LOG("--- expression: " << (void*)expression );
-                    result.push_back( expression );
+                    if ( expression != nullptr )
+                    {
+                        result.push_back( expression );
+                    }
                     startOfLiteral = ptr+1;
                 }
             }
@@ -1224,16 +1149,22 @@ protected:
         
         if constexpr (std::is_same<T, expr::ClassDefinition::ConstructorInfo>::value)
         {
+            // parse constructor initializer list
             if ( _nextTokenIs(Colon) )
             {
                 _shiftToNextToken();
+
+                // until '{'
                 while( ! _nextTokenIs(LeftBrace) )
                 {
                     _shiftToNextTokenIf( Identifier );
+                    
                     auto className = m_tokenIt->lexeme;
                     _shiftToNextTokenIf( LeftParen );
+                    
                     while( ! tokenIs(RightParen) )
                     {
+                        _shiftToNextToken();
                         auto* expr = parseExpr( RightParen );
                         tokenBack();
                         func->m_baseClassInitList.push_back( expr );
