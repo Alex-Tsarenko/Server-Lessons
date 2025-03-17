@@ -6,7 +6,6 @@ enum TokenType
 
     // Keywords
     NamespaceKw,
-    ScopeResolutionOp,
     ClassKw,
     Private,
     Var,
@@ -81,8 +80,13 @@ enum TokenType
     EndOfFile,
     
     // Identifiers and literals
-    Int, Float, String, Identifier, StringLiteral,
-    
+    Int, 
+    Float,
+    String,
+    Identifier,
+    IdentifierWithScope,
+    StringLiteral,
+
     // Others
     Error,
     NilToken,

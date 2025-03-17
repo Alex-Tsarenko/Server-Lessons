@@ -6,7 +6,6 @@ inline constexpr const char* gTokenTypeStrings[] = {
     
 
 "NamespaceKw",
-"ScopeResolutionOp",
 "Class",
 "Private",
 "Var",
@@ -25,7 +24,6 @@ inline constexpr const char* gTokenTypeStrings[] = {
 "None",
 "Nill",
     
-
 
 "Plus",
 "PlusPlusRight",
@@ -84,6 +82,7 @@ inline constexpr const char* gTokenTypeStrings[] = {
 "Float",
 "String",
 "Identifier",
+"IdentifierWithScope",
 "String-Literal",
 "Error",
 };

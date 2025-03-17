@@ -220,9 +220,9 @@ struct PrintFuncCall: public Expression
     {
         for( auto* expr: m_list )
         {
-            LOG("PrintFunc item: " << (void*)expr )
+            //LOG("PrintFunc item: " << (void*)expr )
             ObjectValue value = expr->execute( runtime, isGlobal );
-            LOG("PrintFunc item: " << value.pstring() )
+            //LOG("PrintFunc item: " << value.pstring() )
 
             value.toStream( std::cout );
         }
@@ -523,15 +523,16 @@ struct Identifier : public Expression
         {
             return it->second;
         }
-        
-//        if ( runtime.m_currentNamespace->findVar(m_name) )
+
+        //TODO
+//        if ( runtime.m_currentNamespace-> findVar(m_name) )
 //        {
 //            throw using_of_uninitialized_variable{ runtime.m_currentNamespace, runtime.m_currentNamespace.findVar(m_name) };
 //        }
 //        else
-//        {
-//            throw unknow_variable{};
-//        }
+        {
+            throw runtime_error( "unknown variable: '" + m_token.lexeme + "'", m_token );
+        }
 
         return gNullObject;
     }
@@ -727,32 +728,59 @@ struct FunctionCall: public Expression
     std::string                 m_functionName;
     std::vector<Expression*>    m_parameters;
 
-    FunctionCall( const Token& token ) : Expression(token), m_functionName(token.lexeme) {}
-    
+    std::vector<Token*>         m_namespaceSpec;
+
+    FunctionCall( const Token& token ) : Expression(token)
+    {
+        if ( token.type == IdentifierWithScope )
+        {
+            LOG( "??:" << token.lexeme );
+        }
+        else
+        {
+            m_functionName = token.lexeme;
+        }
+    }
+
     virtual enum ExpressionType type() override { return et_func_call; }
     
     virtual void printExpr() override
     {
         LOGX( m_token.lexeme << "(" );
+        bool atFirst = true;
         for( auto& parameter: m_parameters )
         {
+            if ( atFirst )
+            {
+                atFirst = false;
+            }
+            else
+            {
+                LOGX( ",");
+            }
             LOGX( " ");
             parameter->printExpr();
-            LOGX( ",");
         }
         LOGX( ")");
     }
     
     ObjectValue execute( Runtime& runtime, bool isGlobal ) override
     {
-        Namespace* namespacePtr = &runtime.m_topLevelNamespace;
-        return execute( runtime, namespacePtr, isGlobal );
+        if ( m_namespaceSpec.empty() )
+        {
+            Namespace* namespacePtr = &runtime.m_topLevelNamespace;
+            return execute( runtime, namespacePtr, isGlobal );
+        }
+        else
+        {
+
+        }
     }
 
     ObjectValue execute( Runtime& runtime, Namespace* namespacePtr, bool isGlobal )
     {
         //TODO
-        LOG("execute function?: " << m_functionName )
+        //LOG("execute function?: " << m_functionName )
         if ( auto it = namespacePtr->m_functionMap.find( m_functionName ); it == runtime.m_topLevelNamespace.m_functionMap.end() )
         {
             RUNTIME_EX2( std::string("Undefined function: ") + m_functionName );
@@ -762,6 +790,16 @@ struct FunctionCall: public Expression
             FuncDefinition* fDefinition = it->second;
             return execute( runtime, fDefinition, isGlobal );
         }
+    }
+
+    ObjectValue executeWithScope( Runtime& runtime, bool isGlobal )
+    {
+        auto* fDefinition = runtime.m_currentNamespace->getFunctionDef( m_token.lexeme, m_namespaceSpec );
+        if ( fDefinition == nullptr )
+        {
+            throw runtime_error( "unknow function: ", m_token );
+        }
+        FunctionCall::execute( runtime, fDefinition, isGlobal );
     }
 
     ObjectValue execute( Runtime& runtime, FuncDefinition* fDefinition, bool isGlobal )
@@ -792,38 +830,6 @@ struct FunctionCall: public Expression
     }
 
 };
-
-struct FunctionCallWithNamespace: public FunctionCall
-{
-    std::vector<Token*>  m_namespaceSpec;
-
-    FunctionCallWithNamespace( const Token& token, std::vector<Token*>&& namespaceSpec ) : FunctionCall(token), m_namespaceSpec(namespaceSpec) {}
-
-    virtual enum ExpressionType type() override { return et_func_call; }
-
-    virtual void printExpr() override
-    {
-        LOGX( m_token.lexeme << "(" );
-        for( auto& parameter: m_parameters )
-        {
-            LOGX( " ");
-            parameter->printExpr();
-            LOGX( ",");
-        }
-        LOGX( ")");
-    }
-
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
-    {
-        auto* fDefinition = runtime.m_currentNamespace->getFunctionDef( m_token.lexeme, m_namespaceSpec );
-        if ( fDefinition == nullptr )
-        {
-            throw runtime_error( "unknow function: ", m_token );
-        }
-        FunctionCall::execute( runtime, fDefinition, isGlobal );
-    }
-};
-
 
 struct If : public Expression
 {

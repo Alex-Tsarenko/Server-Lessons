@@ -290,49 +290,52 @@ protected:
                 return classDefinition;
             }
             case Identifier:
+            case IdentifierWithScope:
                 if ( _nextTokenIs(LeftParen) )
                 {
+                    // f(...) function call
                     return parseExpr(Semicolon);
                 }
-                else if ( _nextTokenIs(ScopeResolutionOp) )
-                {
-                    // namespace operation
-                    std::vector<Token*>   namespaceSpec;
-
-                    // N2::N1::var | N2::var
-                    _shiftToNextToken(); // skip N2
-                againScopeResolutionOp:
-                    _shiftToNextToken(); // skip ::
-                    
-                    if ( ! tokenIs(Identifier) )
-                    {
-                        throw syntax_error( std::string("expected identifier: "), *m_tokenIt );
-                    }
-
-                    if ( _nextTokenIs(ScopeResolutionOp) )
-                    {
-                        auto token = *m_tokenIt;
-                        namespaceSpec.push_back( &token );
-                        _shiftToNextToken(); // skip N1
-                        goto againScopeResolutionOp;
-                    }
-                    else
-                    {
-                        // func or variable
-                        if ( _nextTokenIs(LeftParen) )
-                        {
-                            // function call
-                            auto* funcDef = parseExpr(Semicolon);
-                            return funcDef;
-                        }
-
-                    }
-                    //TODO!!!
-                    return parseExpr(Semicolon);
-                }
+//                else if ( _nextTokenIs(ScopeResolutionOp) )
+//                {
+//                    // namespace operation
+//                    std::vector<Token*>   namespaceSpec;
+//
+//                    // N2::N1::var | N2::var
+//                    _shiftToNextToken(); // skip N2
+//                againScopeResolutionOp:
+//                    _shiftToNextToken(); // skip ::
+//                    
+//                    if ( ! tokenIs(Identifier) )
+//                    {
+//                        throw syntax_error( std::string("expected identifier: "), *m_tokenIt );
+//                    }
+//
+//                    if ( _nextTokenIs(ScopeResolutionOp) )
+//                    {
+//                        auto token = *m_tokenIt;
+//                        namespaceSpec.push_back( &token );
+//                        _shiftToNextToken(); // skip N1
+//                        goto againScopeResolutionOp;
+//                    }
+//                    else
+//                    {
+//                        // func or variable
+//                        if ( _nextTokenIs(LeftParen) )
+//                        {
+//                            // function call
+//                            auto* funcDef = parseExpr(Semicolon);
+//                            return funcDef;
+//                        }
+//
+//                    }
+//                    //TODO!!!
+//                    return parseExpr(Semicolon);
+//                }
                 else
                 {
                     // assignment
+                    // x = ...;
                     auto* assignment = new expr::AssignmentStatement( *m_tokenIt );
                     _shiftToNextTokenIf( Assignment );
                     assignment->m_expr = parseExpr( Semicolon );
@@ -449,6 +452,7 @@ protected:
         auto* result = constructExpr();
         
         result->printExpr();
+        LOGX("\n");
         return result;
     }
     
@@ -555,6 +559,7 @@ protected:
                     break;
                 }
                 case Identifier:
+                case IdentifierWithScope:
                 {
                     LOG( "@@@ Identifier: " << m_tokenIt->lexeme )
 
@@ -567,7 +572,6 @@ protected:
                         LOG( "@@@ ??? Func_Call to stack: " << m_tokenIt->lexeme )
 
                         // Function call
-                        //m_funcStack.push_back( new expr::FunctionCall( { *m_tokenIt }  ) );
                         m_operationStack.push_back( new expr::FunctionCall( { *m_tokenIt } ));
 
                         // skip '('

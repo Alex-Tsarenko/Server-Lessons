@@ -1,12 +1,12 @@
 
-//func f11() { return 110; }
-
 func main()
 {
-    var x = 10 + f(4,a*(8+3),x-f12()) + 11;
-//    print("\(f11())";
-//    A1::A2::A3::f(0);
+    ::A1::f11();
 }
+
+//func f11() { return 11; }
+
+//print("TEST: \(::A1::f11())\n";
 
 //namespace A1
 //{
@@ -79,3 +79,11 @@ func main()
 //{
 //    return 100;
 //}
+
+//func main()
+//{
+//    var x = 10 + f(4,a*(8+3),x-f12()) + 11;
+//    print("\(f11())";
+////    A1::A2::A3::f(0);
+//}
+

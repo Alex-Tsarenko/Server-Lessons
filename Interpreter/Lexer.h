@@ -292,7 +292,23 @@ public:
             default: break;
         }
 
-        addToken( Token{ type, std::move(lexeme), m_line, startPos, m_pos } );
+        if ( type == TokenType::Identifier )
+        {
+            if ( m_tokens.back().type == IdentifierWithScope )
+            {
+                m_tokens.back().lexeme.append(" ");
+                m_tokens.back().lexeme.append(lexeme);
+                m_tokens.back().endPos = m_pos;
+            }
+            else
+            {
+                addToken( Token{ TokenType::Identifier, std::move(lexeme), m_line, startPos, m_pos } );
+            }
+        }
+        else
+        {
+            addToken( Token{ type, std::move(lexeme), m_line, startPos, m_pos } );
+        }
 
         m_ptr--;
         m_pos--;
@@ -313,7 +329,17 @@ public:
                 case ':':
                     if ( ifNext(':') )
                     {
-                        addToken( TokenType::ScopeResolutionOp, "::" );
+                        //addToken( TokenType::ScopeResolutionOp, "::" );
+                        if ( m_tokens.back().type == Identifier || m_tokens.back().type == IdentifierWithScope )
+                        {
+                            m_tokens.back().type = IdentifierWithScope;
+                            m_tokens.back().lexeme.append("::");
+                            m_tokens.back().endPos = m_pos;
+                        }
+                        else
+                        {
+                            addToken( TokenType::IdentifierWithScope, "::" );
+                        }
                         break;
                     }
                     addToken( TokenType::Colon, ":" );
