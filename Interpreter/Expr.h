@@ -149,7 +149,7 @@ inline void evalPrint( Expression* ptr )
     gEvaluateOffset -= 2;
 }
 
-inline void evalPrint( const std::string& lexeme )
+inline void evalPrint( const std::string_view& lexeme )
 {
     for( int i=0; i<gEvaluateOffset; i++ )
     {
@@ -158,7 +158,7 @@ inline void evalPrint( const std::string& lexeme )
     LOG(lexeme)
 }
 
-inline void evalPrintOp2( const std::string& lexeme )
+inline void evalPrintOp2( const std::string_view& lexeme )
 {
     for( int i=0; i<gEvaluateOffset; i++ )
     {
@@ -454,8 +454,8 @@ struct Identifier : public Expression
 {
     Identifier( const Token& token ) : Expression(token), m_name(token.lexeme) {}
 
-    const std::string&  m_name;
-    std::string         m_type;
+    std::string     m_name;
+    std::string     m_type;
     
     virtual enum ExpressionType type() override { return et_identifier; }
     
@@ -503,7 +503,7 @@ struct Identifier : public Expression
                 }
                 runtime.m_currentNamespace = oldCurrentNamespace;
 
-                throw runtime_error( "unknown variable: '" + m_token.lexeme + "'", m_token );
+                throw runtime_error( runtime, "unknown variable: '" + std::string(m_token.lexeme) + "'", m_token );
             }
         }
         else
@@ -531,7 +531,7 @@ struct Identifier : public Expression
 //        }
 //        else
         {
-            throw runtime_error( "unknown variable: '" + m_token.lexeme + "'", m_token );
+            throw runtime_error( runtime, "unknown variable: '" + std::string(m_token.lexeme) + "'", m_token );
         }
 
         return gNullObject;
@@ -545,7 +545,7 @@ struct IntNumber : public Expression
     
     IntNumber( const Token& lexeme ) : Expression(lexeme)
     {
-        m_value = std::stol( m_token.lexeme );
+        m_value = std::stol( std::string(m_token.lexeme) );
     }
     
     virtual enum ExpressionType type() override { return et_int; }
@@ -575,7 +575,7 @@ struct FloatNumber : public Expression
     
     FloatNumber( const Token& lexeme ) : Expression(lexeme)
     {
-        m_value = std::stod( m_token.lexeme );
+        m_value = std::stod( std::string(m_token.lexeme) );
     }
     
     virtual enum ExpressionType type() override { return et_float; }
@@ -728,7 +728,7 @@ struct FunctionCall: public Expression
     std::string                 m_functionName;
     std::vector<Expression*>    m_parameters;
 
-    std::vector<Token*>         m_namespaceSpec;
+    std::vector<std::string>    m_namespaceSpec;
 
     FunctionCall( const Token& token ) : Expression(token)
     {
@@ -794,10 +794,10 @@ struct FunctionCall: public Expression
 
     ObjectValue executeWithScope( Runtime& runtime, bool isGlobal )
     {
-        auto* fDefinition = runtime.m_currentNamespace->getFunctionDef( m_token.lexeme, m_namespaceSpec );
+        auto* fDefinition = runtime.m_currentNamespace->getFunctionDef( m_functionName, m_namespaceSpec );
         if ( fDefinition == nullptr )
         {
-            throw runtime_error( "unknow function: ", m_token );
+            throw runtime_error( runtime, "unknow function: ", m_token );
         }
         FunctionCall::execute( runtime, fDefinition, isGlobal );
     }

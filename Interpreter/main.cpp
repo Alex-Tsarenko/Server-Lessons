@@ -226,15 +226,17 @@ std::string readFile( std::string fileName )
 
 int main()
 {
-
     std::string testStr = readFile("/Users/alex2/C++/Server-Lessons/Interpreter/test.h");
     Lexer lexer{ testStr.data(), testStr.data()+testStr.size() };
     lexer.run();
     
     for( auto& token: lexer.tokens() )
     {
-        LOG( "#### " << gTokenTypeStrings[token.type] << "   " << token.lexeme )
-        LOG( "#### " << gTokenTypeStrings[token.type] << " # " << token.line << " " << token.pos << " "<< token.endPos )
+        if (  token.type == IdentifierWithScope )
+        {
+            LOG( "#### " << gTokenTypeStrings[token.type] << "   " << token.lexeme )
+        }
+//        LOG( "#### " << gTokenTypeStrings[token.type] << " # " << token.line << " " << token.pos << " "<< token.endPos )
     }
 
     Namespace globalNamespace;
@@ -243,7 +245,7 @@ int main()
     
     try
     {
-        Runtime runtime( globalNamespace );
+        Runtime runtime( testStr, globalNamespace );
         runtime.initGlobalVariables();
         std::vector<expr::Expression*> program = std::move(parser.m_program);
         runtime.run( program, testStr );

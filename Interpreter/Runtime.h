@@ -4,6 +4,7 @@
 #include "TokenTypeStrings.h"
 #include "ClassObject.h"
 #include "Namespace.h"
+#include "getLineAndPos.h"
 #include <map>
 #include <stack>
 
@@ -39,6 +40,8 @@ struct GlobalVariableMap
 
 struct Runtime
 {
+    const std::string_view m_programText;
+
     Namespace&          m_topLevelNamespace;
     GlobalVariableMap   m_globalVariableMap;
 
@@ -48,11 +51,16 @@ struct Runtime
     using LocalVarStack = std::vector< std::map<std::string,ObjectValue> >;
     LocalVarStack       m_localVarStack;
 
-    Runtime( Namespace& globaNamespace ) : m_topLevelNamespace(globaNamespace) {}
+    Runtime( const std::string_view& programText, Namespace& globaNamespace ) : m_programText(programText), m_topLevelNamespace(globaNamespace) {}
 
     void initGlobalVariables();
 
     void run( const std::vector<expr::Expression*>& code, const std::string& sourceCode );
+
+    void getLineAndPos( const Token& token, int& line, int& pos, int& endPos ) const
+    {
+        ::getLineAndPos( m_programText, token, line, pos, endPos );
+    }
 
 private:
     void initGlobalVariablesR( Namespace& namespaceRef );

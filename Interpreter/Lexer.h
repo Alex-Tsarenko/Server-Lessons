@@ -2,18 +2,19 @@
 
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include "Logs.h"
 #include "Token.h"
 #include "TokenTypeStrings.h"
 #include <cassert>
+
+#define IGNORE_COMMENTS 1
 
 // Scanner
 class Lexer
 {
     const char* m_ptr;
     const char* m_endPtr;
-    int         m_line = 0;
-    int         m_pos  = 0;
 
     std::vector<Token> m_tokens;
     
@@ -24,10 +25,10 @@ public:
 
     const std::vector<Token>& tokens() const { return m_tokens; }
 
-    void addToken( TokenType type, const std::string& lexeme )
+    void addToken( TokenType type, const std::string_view& lexeme )
     {
-        LOG( "add token: '" << gTokenTypeStrings[type] << "'");
-        m_tokens.push_back( Token{ type, lexeme, m_line, m_pos } );
+        LOG( "add token: '" << gTokenTypeStrings[type] << "'  " << lexeme );
+        m_tokens.push_back( Token{ type, lexeme } );
     }
     
     void addToken( Token&& token )
@@ -53,16 +54,13 @@ public:
     void handleStringLiteral( char delimiter )
     {
         auto start = m_ptr;
-        auto startPos = m_pos;
         m_ptr++;
-        m_pos++;
         int slashCounter = 0;
         while( (m_ptr < m_endPtr) && (*m_ptr != delimiter) )
         {
             if ( *m_ptr == '\\' )
             {
                 m_ptr++;
-                m_pos++;
                 switch( *m_ptr )
                 {
                     case '"':
@@ -87,7 +85,6 @@ public:
             if ( *m_ptr == '$' )
             {
                 m_ptr++;
-                m_pos++;
                 switch( *m_ptr )
                 {
                     case '"':
@@ -110,63 +107,64 @@ public:
                 }
             }
             m_ptr++;
-            m_pos++;
         }
-        
-        if ( slashCounter == 0 )
-        {
-            addToken( Token{ TokenType::StringLiteral, std::string(start+1,m_ptr), m_line, startPos, m_pos } );
-        }
-        else
-        {
-            std::string literal;
-            literal.reserve( m_ptr-start+1-slashCounter );
-            
-            for( auto ptr=start+1; ptr<m_ptr; ptr++ )
-            {
-                if ( *ptr == '\\')
-                {
-                    switch( *(ptr+1) )
-                    {
-                        case '"':
-                        case '\'':
-                        case '\\':
-                            literal.append(1,*ptr);
-                            break;
-                        case 'n':
-                            literal.append(1,'\n');
-                            break;
-                        case 'r':
-                            literal.append(1,'\r');
-                            break;
-                        case 't':
-                            literal.append(1,'\t');
-                            break;
-                        case '0':
-                            literal.append(1,0);
-                            break;
-                        case 'x':
-                        {
-                            ptr++;
-                            uint8_t c = std::stoi( std::string(ptr,ptr+2), nullptr, 16 );
-                            literal.append(1,c);
-                            ptr++;
-                            break;
-                        }
-                        default:
-                            literal.append(1,*ptr);
-                            literal.append(1,*(ptr+1));
-                            break;
-                    }
-                    ptr++;
-                }
-                else
-                {
-                    literal.append(1,*ptr);
-                }
-            }
-            addToken( Token{ TokenType::StringLiteral, std::move(literal), m_line, startPos, m_pos } );
-        }
+
+        addToken( Token{ TokenType::StringLiteral, std::string_view(start+1,m_ptr) } );
+
+//        if ( slashCounter == 0 )
+//        {
+//            addToken( Token{ TokenType::StringLiteral, std::string_view(start+1,m_ptr) } );
+//        }
+//        else
+//        {
+//            std::string literal;
+//            literal.reserve( m_ptr-start+1-slashCounter );
+//            
+//            for( auto ptr=start+1; ptr<m_ptr; ptr++ )
+//            {
+//                if ( *ptr == '\\')
+//                {
+//                    switch( *(ptr+1) )
+//                    {
+//                        case '"':
+//                        case '\'':
+//                        case '\\':
+//                            literal.append(1,*ptr);
+//                            break;
+//                        case 'n':
+//                            literal.append(1,'\n');
+//                            break;
+//                        case 'r':
+//                            literal.append(1,'\r');
+//                            break;
+//                        case 't':
+//                            literal.append(1,'\t');
+//                            break;
+//                        case '0':
+//                            literal.append(1,0);
+//                            break;
+//                        case 'x':
+//                        {
+//                            ptr++;
+//                            uint8_t c = std::stoi( std::string(ptr,ptr+2), nullptr, 16 );
+//                            literal.append(1,c);
+//                            ptr++;
+//                            break;
+//                        }
+//                        default:
+//                            literal.append(1,*ptr);
+//                            literal.append(1,*(ptr+1));
+//                            break;
+//                    }
+//                    ptr++;
+//                }
+//                else
+//                {
+//                    literal.append(1,*ptr);
+//                }
+//            }
+//            addToken( Token{ TokenType::StringLiteral, std::move(literal), m_line, startPos, m_pos } );
+//        }
         
         LOG( "TokenType::String: <" << m_tokens.back().lexeme << ">")
     }
@@ -180,13 +178,10 @@ public:
          *                | octinteger | hexinteger  // TODO
         */
         auto start = m_ptr;
-        auto startPos = m_pos;
         m_ptr++;
-        m_pos++;
         while( (m_ptr < m_endPtr) && isdigit(*m_ptr) )
         {
             m_ptr++;
-            m_pos++;
         }
         
         bool hasDecimal = false;
@@ -194,16 +189,12 @@ public:
         {
             hasDecimal = true;
             m_ptr++;
-            m_pos++;
             while( (m_ptr < m_endPtr) && isdigit(*m_ptr) )
             {
                 m_ptr++;
-                m_pos++;
             }
         }
-        addToken( Token{ hasDecimal ? TokenType::Float : TokenType::Int, std::string(start,m_ptr), m_line, startPos, m_pos } );
-        m_ptr--;
-        m_pos--;
+        addToken( Token{ hasDecimal ? TokenType::Float : TokenType::Int, std::string_view{start,m_ptr} } );
     }
     
     std::string tolower(std::string s)
@@ -217,7 +208,7 @@ public:
         return s;
     }
     
-    TokenType typeOf( const std::string& lexeme )
+    TokenType typeOf( const std::string_view& lexeme )
     {
         //        Class,
         //        Print, Func, Return,
@@ -227,7 +218,7 @@ public:
         //        And, Or, Not,
         //        Pass,
         
-        static std::unordered_map<std::string,TokenType> map = {
+        static std::unordered_map<std::string_view,TokenType> map = {
             {"namespace",NamespaceKw},
             {"class",ClassKw},
             {"private",Private},
@@ -245,7 +236,7 @@ public:
             {"string-literal",StringLiteral},
         };
         
-        auto it = map.find( tolower(lexeme) );
+        auto it = map.find( lexeme );
         if ( it == map.end() )
         {
             return Identifier;
@@ -265,16 +256,13 @@ public:
          *  (where the matched string is not a keyword)
         */
         auto start = m_ptr;
-        auto startPos = m_pos;
         m_ptr++;
-        m_pos++;
         while( (m_ptr < m_endPtr) && (isalnum(*m_ptr) or *m_ptr == '_') )
         {
             m_ptr++;
-            m_pos++;
         }
 
-        auto lexeme = std::string(start,m_ptr);
+        auto lexeme = std::string_view{ start, m_ptr };
 
         TokenType type = typeOf( lexeme );
 
@@ -296,22 +284,19 @@ public:
         {
             if ( m_tokens.back().type == IdentifierWithScope )
             {
-                m_tokens.back().lexeme.append(" ");
-                m_tokens.back().lexeme.append(lexeme);
-                m_tokens.back().endPos = m_pos;
+                m_tokens.back().lexeme = std::string_view{ m_tokens.back().lexeme.data(), m_ptr };
             }
             else
             {
-                addToken( Token{ TokenType::Identifier, std::move(lexeme), m_line, startPos, m_pos } );
+                addToken( Token{ TokenType::Identifier, lexeme } );
             }
         }
         else
         {
-            addToken( Token{ type, std::move(lexeme), m_line, startPos, m_pos } );
+            addToken( Token{ type, lexeme } );
         }
 
         m_ptr--;
-        m_pos--;
         assert( *m_ptr != '\n' );
     }
 
@@ -319,8 +304,7 @@ public:
     {
         addToken( TokenType::Begin, "<begin>" );
 
-        m_line = 0;
-        for(; m_ptr < m_endPtr; m_ptr++, m_pos++ )
+        for(; m_ptr < m_endPtr; m_ptr++ )
         {
             switch( *m_ptr )
             {
@@ -329,108 +313,106 @@ public:
                 case ':':
                     if ( ifNext(':') )
                     {
-                        //addToken( TokenType::ScopeResolutionOp, "::" );
                         if ( m_tokens.back().type == Identifier || m_tokens.back().type == IdentifierWithScope )
                         {
                             m_tokens.back().type = IdentifierWithScope;
-                            m_tokens.back().lexeme.append("::");
-                            m_tokens.back().endPos = m_pos;
+                            m_tokens.back().lexeme = std::string_view{ m_tokens.back().lexeme.data(), m_ptr+1 };
                         }
                         else
                         {
-                            addToken( TokenType::IdentifierWithScope, "::" );
+                            addToken( TokenType::IdentifierWithScope, {m_ptr-1,2} );
                         }
                         break;
                     }
-                    addToken( TokenType::Colon, ":" );
+                    addToken( TokenType::Colon, {m_ptr,1} );
                     break;
                 case '(':
-                    addToken( TokenType::LeftParen, "(" );
+                    addToken( TokenType::LeftParen, {m_ptr,1} );
                     break;
                 case ')':
-                    addToken( TokenType::RightParen, ")" );
+                    addToken( TokenType::RightParen, {m_ptr,1} );
                     break;
                 case '{':
-                    addToken( TokenType::LeftBrace, "{" );
+                    addToken( TokenType::LeftBrace, {m_ptr,1} );
                     m_isBlockLevel++;
                     break;
                 case '}':
-                    addToken( TokenType::RightBrace, "}" );
+                    addToken( TokenType::RightBrace, {m_ptr,1} );
                     m_isBlockLevel--;
                     break;
                 case '[':
-                    addToken( TokenType::LeftSqBracket, "[" );
+                    addToken( TokenType::LeftSqBracket, {m_ptr,1} );
                     m_isBlockLevel++;
                     break;
                 case ']':
-                    addToken( TokenType::RightSqBracket, "]" );
+                    addToken( TokenType::RightSqBracket, {m_ptr,1} );
                     m_isBlockLevel--;
                     break;
                 case ',':
-                    addToken( TokenType::Comma, "," );
+                    addToken( TokenType::Comma, {m_ptr,1} );
                     break;
                 case '.':
-                    addToken( TokenType::Dot, "." );
+                    addToken( TokenType::Dot, {m_ptr,1} );
                     break;
                 case '-':
                     if ( ifNext('=') )
                     {
-                        addToken( TokenType::MinusEqual, "-=" );
+                        addToken( TokenType::MinusEqual, {m_ptr-1,2} );
                     }
                     else if ( ifNext('-') )
                     {
                         auto size = m_tokens.size();
                         if ( size > 0 && m_tokens[size-1].type == TokenType::Identifier )
                         {
-                            addToken( TokenType::MinusMinusRight, "--r" );
+                            addToken( TokenType::MinusMinusRight, {m_ptr-1,2} );
                         }
                         else
                         {
-                            addToken( TokenType::MinusMinusLeft, "--l" );
+                            addToken( TokenType::MinusMinusLeft, {m_ptr-1,2} );
                         }
                     }
                     else
                     {
-                        addToken( TokenType::Minus, "-" );
+                        addToken( TokenType::Minus, {m_ptr,1} );
                     }
                     break;
                 case '+':
                     if ( ifNext('=') )
                     {
-                        addToken( TokenType::PlusEqual, "=" );
+                        addToken( TokenType::PlusEqual, {m_ptr,1} );
                     }
                     else if ( ifNext('+') )
                     {
                         auto size = m_tokens.size();
                         if ( size > 0 && m_tokens[size-1].type == TokenType::Identifier )
                         {
-                            addToken( TokenType::PlusPlusRight, "++r" );
+                            addToken( TokenType::PlusPlusRight, {m_ptr-1,2} );
                         }
                         else
                         {
-                            addToken( TokenType::PlusPlusLeft, "++l" );
+                            addToken( TokenType::PlusPlusLeft, {m_ptr-1,2} );
                         }
                     }
                     else
                     {
-                        addToken( TokenType::Plus, "+" );
+                        addToken( TokenType::Plus, {m_ptr,1} );
                     }
                     break;
                 case ';':
-                    addToken( TokenType::Semicolon, ";" );
+                    addToken( TokenType::Semicolon, {m_ptr,1} );
                     break;
                 case '*':
                     if ( ifNext('*') )
                     {
-                        addToken(  TokenType::DoubleStar, "**" );
+                        addToken(  TokenType::DoubleStar, {m_ptr-1,2} );
                     }
                     else if ( ifNext('=') )
                     {
-                        addToken( TokenType::StarEqual, "*=" );
+                        addToken( TokenType::StarEqual, {m_ptr-1,2} );
                     }
                     else
                     {
-                        addToken( TokenType::Star, "*" );
+                        addToken( TokenType::Star, {m_ptr,1} );
                     }
                     break;
                 case '/':
@@ -438,28 +420,28 @@ public:
                     {
                         auto start = m_ptr-1;
                         while( *m_ptr != '\n' && *m_ptr != '\r' ) m_ptr++;
-                        addToken( Token{ TokenType::Comment, std::string(start,m_ptr), m_line, m_pos } );
-                        m_line++;
-                        m_pos = 0;
-                        //std::cout << std::string(start,eol) << std::endl;
+
+                        #ifndef IGNORE_COMMENTS
+                            addToken( Token{ TokenType::Comment, std::string(start,m_ptr) } );
+                        #endif
                     }
                     else if ( ifNext('=') )
                     {
-                        addToken( TokenType::SlashEqual, "/=" );
+                        addToken( TokenType::SlashEqual, {m_ptr-1,2} );
                     }
                     else
                     {
-                        addToken( TokenType::Slash, "/" );
+                        addToken( TokenType::Slash, {m_ptr,1} );
                     }
                     break;
                 case '%':
                     if ( ifNext('=') )
                     {
-                        addToken(  TokenType::ModEqual, "%=" );
+                        addToken(  TokenType::ModEqual, {m_ptr-1,2} );
                     }
                     else
                     {
-                        addToken( TokenType::Mod, "%" );
+                        addToken( TokenType::Mod, {m_ptr,1} );
                     }
                     break;
                 case '|':
@@ -473,34 +455,34 @@ public:
                 case '^':
                     if ( ifNext('=') )
                     {
-                        addToken(  TokenType::XorEqual, "^=" );
+                        addToken(  TokenType::XorEqual, {m_ptr-1,2} );
                     }
                     else
                     {
-                        addToken( TokenType::Xor, "^" );
+                        addToken( TokenType::Xor, {m_ptr,1} );
                     }
                     break;
                 case '~':
-                    addToken( TokenType::Tilde, "~" );
+                    addToken( TokenType::Tilde, {m_ptr,1} );
                     break;
                 case '!':
                     if ( ifNext('=') )
                     {
-                        addToken(  TokenType::NotEqual, "!=" );
+                        addToken(  TokenType::NotEqual, {m_ptr-1,2} );
                     }
                     else
                     {
-                        addToken( TokenType::Not, "!" );
+                        addToken( TokenType::Not, {m_ptr,1} );
                     }
                     break;
                 case '=':
                     if ( ifNext('=') )
                     {
-                        addToken(  TokenType::EqualEqual, "==" );
+                        addToken(  TokenType::EqualEqual, {m_ptr-1,2} );
                     }
                     else
                     {
-                        addToken( TokenType::Assignment, "=" );
+                        addToken( TokenType::Assignment, {m_ptr,1} );
                     }
                     break;
                 case '<':
@@ -508,20 +490,20 @@ public:
                     {
                         if ( ifNext('=') )
                         {
-                            addToken( TokenType::LeftShiftEqual, "<<=" );
+                            addToken( TokenType::LeftShiftEqual, {m_ptr-2,3} );
                         }
                         else
                         {
-                            addToken(  TokenType::LeftShift, "<<" );
+                            addToken(  TokenType::LeftShift, {m_ptr-1,2} );
                         }
                     }
                     else if ( ifNext('=') )
                     {
-                        addToken( TokenType::LessEqual, "<=" );
+                        addToken( TokenType::LessEqual, {m_ptr-1,2} );
                     }
                     else
                     {
-                        addToken( TokenType::Less, "<" );
+                        addToken( TokenType::Less, {m_ptr,1} );
                     }
                     break;
                 case '>':
@@ -529,20 +511,20 @@ public:
                     {
                         if ( ifNext('=') )
                         {
-                            addToken( TokenType::RightShiftEqual, ">>=" );
+                            addToken( TokenType::RightShiftEqual, {m_ptr-2,3} );
                         }
                         else
                         {
-                            addToken(  TokenType::RightShift, ">>" );
+                            addToken(  TokenType::RightShift, {m_ptr-1,2} );
                         }
                     }
                     else if ( ifNext('=') )
                     {
-                        addToken( TokenType::GreaterEqual, ">=" );
+                        addToken( TokenType::GreaterEqual, {m_ptr-1,2} );
                     }
                     else
                     {
-                        addToken( TokenType::Greater, ">" );
+                        addToken( TokenType::Greater, {m_ptr,1} );
                     }
                     break;
 //                 case '#':
@@ -559,9 +541,7 @@ public:
                     // ignore whitespaces
                     break;
                 case '\n':
-                    m_line++;
-                    m_pos = -1;
-                    addToken( TokenType::Newline, "\\n" );
+                    //addToken( TokenType::Newline, "\\n" );
                     break;
 
                     // string literals

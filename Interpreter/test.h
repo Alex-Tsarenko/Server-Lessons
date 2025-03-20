@@ -2,6 +2,7 @@
 func main()
 {
     ::A1::f11();
+    print("TEST: \(::A1::f11())\n";
 }
 
 //func f11() { return 11; }

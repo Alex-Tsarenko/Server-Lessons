@@ -1,13 +1,17 @@
 #pragma once
 
+#include "Lexer.h"
 #include "Expr.h"
 #include "Runtime.h"
+#include "getLineAndPos.h"
 #include "Error.h"
 #include <stack>
 #include <cassert>
 
 struct Parser
 {
+    std::string_view        m_programText;
+
     Namespace&              m_topLevelNamespace;
     std::stack<Namespace*>  m_namespaceStack;
 
@@ -53,6 +57,11 @@ public:
     }
 
     void onError( std::string errorText, int line, int pos ) {}
+
+    void getLineAndPos( const Token& token, int& line, int& pos, int& endPos ) const
+    {
+        ::getLineAndPos( m_programText, token, line, pos, endPos );
+    }
 
     expr::Expression* parsePrintExpr( const char* exprString, const std::vector<Token>& tokens )
     {
@@ -100,8 +109,10 @@ public:
 //        std::cerr << std::endl;
 //    }
     
-    void parseProgram( const char* programText, const std::vector<Token>& tokens )
+    void parseProgram( const std::string_view& programText0, const std::vector<Token>& tokens )
     {
+        m_programText = programText0;
+
 //        for( auto& token: tokens )
 //        {
 //            if ( token.type == Newline ) continue;
@@ -141,7 +152,7 @@ public:
         catch( syntax_error& error )
         {
             std::cerr << "!!! Syntax error: " << error.what() << std::endl;
-            std::cerr << getLine( programText, error.m_line+1 ) << std::endl;
+            std::cerr << getLine( m_programText.data(), error.m_line+1 ) << std::endl;
             for( int i=0; i<error.m_position-1; i++ )
             {
                 std::cerr << ' ';
@@ -198,7 +209,7 @@ protected:
         if ( m_tokenIt->type != type )
         {
             LOG( gTokenTypeStrings[m_tokenIt->type] )
-            throw syntax_error( std::string("expected: '")+gTokenTypeStrings[type]+"'",  *m_tokenIt );
+            throw syntax_error( this, std::string("expected: '")+gTokenTypeStrings[type]+"'",  *m_tokenIt );
         }
     }
 
@@ -224,7 +235,7 @@ protected:
         {
             //if ( m_blockLevel != 0 )
             {
-                throw syntax_error( "unexpected end of file, expected '}'", (m_tokenIt-1)->line, (m_tokenIt-1)->pos, (m_tokenIt-1)->endPos );
+                throw syntax_error( this, "unexpected end of file, expected '}'", *(m_tokenIt) );
             }
             return nullptr;
         }
@@ -240,7 +251,7 @@ protected:
                     LOG( "global Var: " << varDef->m_identifierName )
                     if ( auto result = currentNamespace().m_variableMap.emplace( varDef->m_identifierName, varDef ); !result.second )
                     {
-                        throw syntax_error( std::string("duplicate variable name: "), varDef->m_token );
+                        throw syntax_error( this, std::string("duplicate variable name: "), varDef->m_token );
                     }
 
                     return nullptr;
@@ -255,7 +266,7 @@ protected:
 
                 if ( auto result = currentNamespace().m_functionMap.emplace( funcDef->m_name, funcDef ); !result.second )
                 {
-                    throw syntax_error( std::string("duplicate function name: "), funcDef->m_token );
+                    throw syntax_error( this, std::string("duplicate function name: "), funcDef->m_token );
                 }
                 return nullptr;
             }
@@ -272,7 +283,7 @@ protected:
             {
                 if constexpr (!isGlobal)
                 {
-                    throw syntax_error( "namespace is not allowed here", *m_tokenIt );
+                    throw syntax_error( this, "namespace is not allowed here", *m_tokenIt );
                 }
                 else
                 {
@@ -285,7 +296,7 @@ protected:
                 auto* classDefinition = parseClass();
                 if ( auto result = currentNamespace().m_classMap.emplace( classDefinition->m_name, classDefinition ); !result.second )
                 {
-                    throw syntax_error( std::string("duplicate class name: "), classDefinition->m_token );
+                    throw syntax_error( this, std::string("duplicate class name: "), classDefinition->m_token );
                 }
                 return classDefinition;
             }
@@ -308,7 +319,7 @@ protected:
 //                    
 //                    if ( ! tokenIs(Identifier) )
 //                    {
-//                        throw syntax_error( std::string("expected identifier: "), *m_tokenIt );
+//                        throw syntax_error( this, std::string("expected identifier: "), *m_tokenIt );
 //                    }
 //
 //                    if ( _nextTokenIs(ScopeResolutionOp) )
@@ -345,7 +356,7 @@ protected:
             case RightBrace:
                 if ( m_blockLevel == 0 )
                 {
-                    throw syntax_error( std::string("unexpected ")+gTokenTypeStrings[RightBrace], *m_tokenIt );
+                    throw syntax_error( this, std::string("unexpected ")+gTokenTypeStrings[RightBrace], *m_tokenIt );
                 }
                 m_tokenIt--;
                 return nullptr;
@@ -357,7 +368,7 @@ protected:
 
             default:
                 LOG( "parseStatement: unexpected token: " << gTokenTypeStrings[m_tokenIt->type]  );
-                throw syntax_error( std::string("parseStatement: unexpected token: ")+gTokenTypeStrings[m_tokenIt->type],  *m_tokenIt );
+                throw syntax_error( this, std::string("parseStatement: unexpected token: ")+gTokenTypeStrings[m_tokenIt->type],  *m_tokenIt );
                 break;
         }
         
@@ -375,7 +386,7 @@ protected:
 //    {
 //        if ( m_tokenIt->type != type )
 //        {
-//            throw syntax_error( std::string("expected: '")+gTokenTypeStrings[type]+"'",  *m_tokenIt );
+//            throw syntax_error( this, std::string("expected: '")+gTokenTypeStrings[type]+"'",  *m_tokenIt );
 //        }
 //    }
     
@@ -417,7 +428,7 @@ protected:
                 break;
                 
             default:
-                throw syntax_error( std::string("expected type: "), *m_tokenIt );
+                throw syntax_error( this, std::string("expected type: "), *m_tokenIt );
         }
     }
 
@@ -444,7 +455,7 @@ protected:
             }
             else
             {
-                LOG( "##parseExpr# dbg: " <<  gTokenTypeStrings[m_output[i]->m_token.type] << " " << m_output[i]->m_token.lexeme.c_str() );
+                LOG( "##parseExpr# dbg: " <<  gTokenTypeStrings[m_output[i]->m_token.type] << " " << m_output[i]->m_token.lexeme );
             }
         }
         
@@ -460,7 +471,7 @@ protected:
     {
         if ( m_operationStack.back() == &leftParen )
         {
-            throw syntax_error( std::string("expected right parenthesis: "),  *m_tokenIt );
+            throw syntax_error( this, std::string("expected right parenthesis: "),  *m_tokenIt );
         }
         
 //        if ( m_operationStack.back()->type() == expr::et_func_call )
@@ -747,7 +758,7 @@ protected:
                 if ( ((expr::UnaryExpression*)expr)->m_expr == nullptr )
                 {
                     auto& token = expr->m_token;
-                    throw syntax_error( std::string("expression syntax error: "),  *m_tokenIt );
+                    throw syntax_error( this, std::string("expression syntax error: "),  *m_tokenIt );
                 }
                 return expr;
             }
@@ -758,7 +769,7 @@ protected:
                 if ( ((expr::BinaryOpExpression*)expr)->m_expr == nullptr )
                 {
                     auto& token = expr->m_token;
-                    throw syntax_error( std::string("expression syntax error: "),  *m_tokenIt );
+                    throw syntax_error( this, std::string("expression syntax error: "),  *m_tokenIt );
                 }
 
                 ((expr::BinaryOpExpression*)expr)->m_expr2 = constructExpr();
@@ -766,7 +777,7 @@ protected:
                 if ( ((expr::BinaryOpExpression*)expr)->m_expr2 == nullptr )
                 {
                     auto& token = expr->m_token;
-                    throw syntax_error( std::string("expression syntax error: "), *m_tokenIt );
+                    throw syntax_error( this, std::string("expression syntax error: "), *m_tokenIt );
                 }
 
                 return expr;
@@ -774,8 +785,8 @@ protected:
             case expr::et_undefined:
             {
                 auto& token = expr->m_token;
-                LOG( std::string("unexpexted et_undefined: " + m_tokenIt->lexeme ) )
-                throw syntax_error( std::string("unexpexted et_undefined: "), *m_tokenIt );
+                LOG( "unexpexted et_undefined: " << m_tokenIt->lexeme )
+                throw syntax_error( this, std::string("unexpexted et_undefined: "), *m_tokenIt );
             }
             case expr::et_assignment:
                 break;
@@ -792,15 +803,15 @@ protected:
         _shiftToNextTokenIf( Identifier );
         const Token& namespaceName = *m_tokenIt;
 
-        auto it = currentNamespace().m_innerNamespaceMap.find( namespaceName.lexeme );
+        auto it = currentNamespace().m_innerNamespaceMap.find( std::string{namespaceName.lexeme} );
         if ( it != currentNamespace().m_innerNamespaceMap.end() )
         {
             m_namespaceStack.push( &it->second );
         }
         else
         {
-            currentNamespace().m_innerNamespaceMap[namespaceName.lexeme] = { namespaceName.lexeme, &currentNamespace() };
-            m_namespaceStack.push( &currentNamespace().m_innerNamespaceMap[namespaceName.lexeme] );
+            currentNamespace().m_innerNamespaceMap[ std::string{namespaceName.lexeme} ] = { std::string{namespaceName.lexeme}, &currentNamespace() };
+            m_namespaceStack.push( &currentNamespace().m_innerNamespaceMap[std::string{namespaceName.lexeme}] );
         }
 
         _shiftToNextTokenIf( LeftBrace );
@@ -814,7 +825,7 @@ protected:
             }
             if ( tokenIs(EndOfFile) )
             {
-                throw syntax_error( "unexpected end of file, expected '}' of namespace", *m_tokenIt );
+                throw syntax_error( this, "unexpected end of file, expected '}' of namespace", *m_tokenIt );
             }
             parseStatement<true>();
         }
@@ -843,7 +854,7 @@ protected:
             _shiftToNextToken();
             if ( ! tokenIs(Identifier) && ! tokenIs(Int) && ! tokenIs(Float) && ! tokenIs(String) )
             {
-                throw syntax_error( std::string("expected type: "), *m_tokenIt );
+                throw syntax_error( this, std::string("expected type: "), *m_tokenIt );
             }
             LOG( "After colon (var type): " << m_tokenIt->lexeme );
             varType = m_tokenIt->lexeme;
@@ -932,11 +943,11 @@ protected:
                 
                 if ( ! tokenIs(Identifier) )
                 {
-                    throw syntax_error( "expected base class name: ", *m_tokenIt );
+                    throw syntax_error( this, "expected base class name: ", *m_tokenIt );
                 }
                 
                 // Base class name
-                classDefinition->m_baseClasses.push_back( { isPrivate, (m_tokenIt)->lexeme } );
+                classDefinition->m_baseClasses.push_back( { isPrivate, std::string{(m_tokenIt)->lexeme} } );
             }
         }
 
@@ -959,7 +970,7 @@ protected:
             //todo++ var&
             if ( tokenIs(Var) )
             {
-                throw syntax_error( "unexpected 'var' keyword inside class: ", *m_tokenIt );
+                throw syntax_error( this, "unexpected 'var' keyword inside class: ", *m_tokenIt );
             }
             else if ( tokenIs(Identifier) )
             {
@@ -968,7 +979,7 @@ protected:
                     // parse constructor
                     if ( ! tokenIs(Identifier) || m_tokenIt->lexeme != "constructor" )
                     {
-                        throw syntax_error( std::string("inside class unexpected : ") + m_tokenIt->lexeme, *m_tokenIt );
+                        throw syntax_error( this, std::string("inside class unexpected : ") + std::string{m_tokenIt->lexeme}, *m_tokenIt );
                     }
                     auto* constructorDef = parseFuncDef< expr::ClassDefinition::ConstructorInfo >();
                     constructorDef->m_isPrivate = isPrivate;
@@ -992,7 +1003,7 @@ protected:
                 auto result = classDefinition->m_innerClasses.emplace( innerClass->m_name, innerClass );
                 if ( !result.second )
                 {
-                    throw syntax_error( std::string("duplicate class name: "), innerClass->m_token.line, innerClass->m_token.pos, innerClass->m_token.endPos );
+                    throw syntax_error( this, std::string("duplicate class name: "), innerClass->m_token );
                 }
             }
 //            else if ( tokenIs(Int) || tokenIs(Float) || tokenIs(String) || tokenIs(Identifier) || tokenIs(StringLiteral) )
@@ -1002,7 +1013,7 @@ protected:
             else
             {
                 LOG( std::string("unexpected lexeme into class definition: ") << m_tokenIt->lexeme );
-                throw syntax_error( std::string("unexpected lexeme into class definition: "), *m_tokenIt );
+                throw syntax_error( this, std::string("unexpected lexeme into class definition: "), *m_tokenIt );
             }
         }
         
@@ -1018,7 +1029,7 @@ protected:
         return new expr::Return{ returnValue };// expr;
     }
     
-    std::vector<expr::Expression*> parsePrintArgument( const std::string& printString, const Token& printStringToken )
+    std::vector<expr::Expression*> parsePrintArgument( const std::string_view& printString, const Token& printStringToken )
     {
         const char* ptr = printString.data();
         const char* end = ptr + printString.size();
@@ -1033,7 +1044,7 @@ protected:
                 ptr++;
                 if ( ptr >= end )
                 {
-                    throw syntax_error( "printString: internal error: '\\' at the end of string", *m_tokenIt );
+                    throw syntax_error( this, "printString: internal error: '\\' at the end of string", *m_tokenIt );
                 }
                 if ( *ptr=='(' )
                 {
@@ -1109,7 +1120,7 @@ protected:
 
             if ( auto it = currentNamespace().m_functionMap.find(func->m_name); it != currentNamespace().m_functionMap.end() )
             {
-                throw syntax_error( std::string("function with same name already exist: "), *m_tokenIt );
+                throw syntax_error( this, std::string("function with same name already exist: "), *m_tokenIt );
             }
         }
         
@@ -1126,22 +1137,23 @@ protected:
             {
                 if ( argumentNumber == 0 )
                 {
-                    throw syntax_error( std::string("expected ')': "), *m_tokenIt );
+                    throw syntax_error( this, std::string("expected ')': "), *m_tokenIt );
                 }
-                throw syntax_error( std::string("expected argument name: "), *m_tokenIt );
+                throw syntax_error( this, std::string("expected argument name: "), *m_tokenIt );
             }
 
             // Argument name
-            std::string name = m_tokenIt->lexeme;
-            
+            std::string name = std::string{m_tokenIt->lexeme};
+
             _shiftToNextTokenIf( Colon );
 
             // Parse argument type
             _shiftToNextToken();
             tokenMustBeType();
             
-            LOG( "argument: " << name << " Type:" << m_tokenIt->lexeme )
-            func->m_argList.emplace_back( expr::Argument{std::move(name), m_tokenIt->lexeme} );
+            auto argType = std::string{m_tokenIt->lexeme};
+            LOG( "argument: " << name << " Type: " << argType )
+            func->m_argList.emplace_back( expr::Argument{std::move(name), argType} );
 
             _shiftToNextToken();
             if ( ! tokenIs( Comma ) )
@@ -1197,7 +1209,7 @@ protected:
     {
         _shiftToNextTokenIf( LeftParen );
         //???
-        throw syntax_error( std::string("TODO: "), *m_tokenIt );
+        throw syntax_error( this, std::string("TODO: "), *m_tokenIt );
         return nullptr;
     }
 
