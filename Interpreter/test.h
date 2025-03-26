@@ -1,11 +1,25 @@
 
 func main()
 {
-    ::A1::f11();
-    print("TEST: \(::A1::f11())\n";
+    ::A1::A2::test();
+    //print("TEST: \(A1::A2::f11())\n";
 }
 
-//func f11() { return 11; }
+namespace A1
+{
+    func f11() { return 101; }
+
+    namespace A2
+    {
+        //func test() { A1::f11(); }
+        func test() { print("TEST: \(A1::f11())\n"; }
+
+        namespace A1
+        {
+            func f11() { return 111; }
+        }
+    }
+}
 
 //print("TEST: \(::A1::f11())\n";
 

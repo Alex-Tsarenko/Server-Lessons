@@ -31,7 +31,7 @@ struct ObjectValue;
 
 struct GlobalVariableMap
 {
-    std::map<std::string,GlobalVariableMap> m_nestedNamespaceMap;
+    std::map<std::string_view,GlobalVariableMap> m_nestedNamespaceMap;
 
     std::map<std::string,ObjectValue>       m_namespaceGlobalVariableMap;
 
@@ -45,7 +45,7 @@ struct Runtime
     Namespace&          m_topLevelNamespace;
     GlobalVariableMap   m_globalVariableMap;
 
-    Namespace*          m_currentNamespace = nullptr;
+    Namespace*          m_currentNamespace2 = nullptr;
 
     //???
     using LocalVarStack = std::vector< std::map<std::string,ObjectValue> >;

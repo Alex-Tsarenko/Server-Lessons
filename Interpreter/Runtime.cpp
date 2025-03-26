@@ -3,7 +3,7 @@
 
 void Runtime::initGlobalVariablesR( Namespace& namespaceRef )
 {
-    m_currentNamespace = &namespaceRef;
+    m_currentNamespace2 = &namespaceRef;
 
     // go through all variables of this namespace
     for( auto& [variableName,var]: namespaceRef.m_variableMap )
@@ -21,6 +21,8 @@ void Runtime::initGlobalVariablesR( Namespace& namespaceRef )
     {
         initGlobalVariablesR( namespaceRef );
     }
+
+    m_currentNamespace2 = &namespaceRef;
 }
 
 void prepareVarMapToInitializationR( Namespace& namespaceRef )

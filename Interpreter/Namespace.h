@@ -30,13 +30,13 @@ struct Namespace
         return m_parentNamespace->getTopNamespace();
     }
 
-    Namespace* getNamespace( std::vector<std::string>::iterator begin, std::vector<std::string>::iterator end )
+    Namespace* getNamespace( std::vector<std::string_view>::iterator begin, std::vector<std::string_view>::iterator end )
     {
         assert( begin != end );
 
         for( auto* namespacePtr = this;;)
         {
-            if ( auto it = namespacePtr->m_innerNamespaceMap.find( *begin ); it == namespacePtr->m_innerNamespaceMap.end() )
+            if ( auto it = namespacePtr->m_innerNamespaceMap.find( std::string(*begin) ); it == namespacePtr->m_innerNamespaceMap.end() )
             {
                 return nullptr;
             }
@@ -54,7 +54,7 @@ struct Namespace
         return nullptr;
     }
 
-    expr::FuncDefinition* getFunctionDef( const std::string& name, std::vector<std::string>& namespaceSpec )
+    expr::FuncDefinition* getFunctionDef( const std::string& name, std::vector<std::string_view>& namespaceSpec )
     {
         auto* namespacePtr = getNamespace( namespaceSpec.begin(), namespaceSpec.end() );
         if ( namespacePtr != nullptr )
@@ -65,6 +65,7 @@ struct Namespace
             }
         }
 
+        // If our namespace is not top namespace, then try to find in top namespace
         if ( m_parentNamespace != nullptr )
         {
             auto* topNamespace = m_parentNamespace->getTopNamespace();

@@ -476,32 +476,32 @@ struct Identifier : public Expression
         if ( isGlobal )
         {
             LOG( "execute var ???: " << m_name )
-            if ( auto it = runtime.m_currentNamespace->m_variableMap.find(m_name); it != runtime.m_currentNamespace->m_variableMap.end() )
+            if ( auto it = runtime.m_currentNamespace2->m_variableMap.find(m_name); it != runtime.m_currentNamespace2->m_variableMap.end() )
             {
-                if ( auto it = runtime.m_currentNamespace->m_variableValueMap.find(m_name); it != runtime.m_currentNamespace->m_variableValueMap.end() )
+                if ( auto it = runtime.m_currentNamespace2->m_variableValueMap.find(m_name); it != runtime.m_currentNamespace2->m_variableValueMap.end() )
                 {
                     return it->second;
                 }
             }
             else
             {
-                auto* oldCurrentNamespace = runtime.m_currentNamespace;
+                auto* oldCurrentNamespace = runtime.m_currentNamespace2;
                 for(;;)
                 {
-                    LOG( "-- runtime.m_currentNamespace : " << runtime.m_currentNamespace->m_name )
-                    if ( runtime.m_currentNamespace = runtime.m_currentNamespace->m_parentNamespace; runtime.m_currentNamespace == nullptr )
+                    LOG( "-- runtime.m_currentNamespace : " << runtime.m_currentNamespace2->m_name )
+                    if ( runtime.m_currentNamespace2 = runtime.m_currentNamespace2->m_parentNamespace; runtime.m_currentNamespace2 == nullptr )
                     {
                         LOG( "-- break: runtime.m_currentNamespace"  )
                         break;
                     }
-                    LOG( "-- after runtime.m_currentNamespace : " << runtime.m_currentNamespace->m_name )
-                    if ( auto it = runtime.m_currentNamespace->m_variableValueMap.find(m_name); it != runtime.m_currentNamespace->m_variableValueMap.end() )
+                    LOG( "-- after runtime.m_currentNamespace : " << runtime.m_currentNamespace2->m_name )
+                    if ( auto it = runtime.m_currentNamespace2->m_variableValueMap.find(m_name); it != runtime.m_currentNamespace2->m_variableValueMap.end() )
                     {
-                        runtime.m_currentNamespace = oldCurrentNamespace;
+                        runtime.m_currentNamespace2 = oldCurrentNamespace;
                         return it->second;
                     }
                 }
-                runtime.m_currentNamespace = oldCurrentNamespace;
+                runtime.m_currentNamespace2 = oldCurrentNamespace;
 
                 throw runtime_error( runtime, "unknown variable: '" + std::string(m_token.lexeme) + "'", m_token );
             }
@@ -651,7 +651,7 @@ struct FuncDefinition : public Expression
         }
 
         // Insertion failed, meaning m_functionName already exists
-        RUNTIME_EX2( std::string("Double function declaration: ") + m_name );
+        RUNTIME_EX2( std::string("Double function declaration: ") + std::string(m_name) );
     }
 };
 
@@ -728,13 +728,52 @@ struct FunctionCall: public Expression
     std::string                 m_functionName;
     std::vector<Expression*>    m_parameters;
 
-    std::vector<std::string>    m_namespaceSpec;
+    std::vector<std::string_view>   m_namespaceSpec;
 
     FunctionCall( const Token& token ) : Expression(token)
     {
         if ( token.type == IdentifierWithScope )
         {
-            LOG( "??:" << token.lexeme );
+            LOG( "??: " << token.lexeme );
+            bool scopeOp = false;
+            auto end = token.lexeme.data() + token.lexeme.size();
+            for( const char* ptr = token.lexeme.data(); ptr < end; ptr++ )
+            {
+                if ( *ptr == ':' )
+                {
+                    assert( *(ptr+1) == ':' );
+                    assert( !scopeOp );
+                    ptr++;
+                    if ( m_namespaceSpec.empty() )
+                    {
+                        m_namespaceSpec.push_back( std::string_view{ ptr, 0 } );
+                    }
+                    scopeOp = true;
+                }
+                else
+                {
+                    assert( scopeOp || m_namespaceSpec.empty() );
+
+                    auto* begin = ptr;
+                    while( ptr < end and ( isalpha(*ptr) or *ptr == '_' or isdigit(*ptr) ) )
+                    {
+                        ptr++;
+                    }
+                    assert( begin < ptr );
+
+                    if ( ptr==end )
+                    {
+                        m_functionName = std::string{ begin, ptr };
+                    }
+                    else
+                    {
+                        m_namespaceSpec.push_back( std::string_view{ begin, ptr } );
+                        ptr--;
+                    }
+
+                    scopeOp = false;
+                }
+            }
         }
         else
         {
@@ -768,41 +807,61 @@ struct FunctionCall: public Expression
     {
         if ( m_namespaceSpec.empty() )
         {
-            Namespace* namespacePtr = &runtime.m_topLevelNamespace;
-            return execute( runtime, namespacePtr, isGlobal );
-        }
-        else
-        {
+            auto* fDefinition = runtime.m_currentNamespace2->getFunctionDef( m_functionName );
 
+            if ( fDefinition == nullptr )
+            {
+                throw runtime_error( runtime, "unknow function: ", m_token );
+            }
+            FunctionCall::doExecute( runtime, fDefinition, isGlobal );
+            return;
         }
-    }
-
-    ObjectValue execute( Runtime& runtime, Namespace* namespacePtr, bool isGlobal )
-    {
-        //TODO
-        //LOG("execute function?: " << m_functionName )
-        if ( auto it = namespacePtr->m_functionMap.find( m_functionName ); it == runtime.m_topLevelNamespace.m_functionMap.end() )
-        {
-            RUNTIME_EX2( std::string("Undefined function: ") + m_functionName );
-        }
-        else
-        {
-            FuncDefinition* fDefinition = it->second;
-            return execute( runtime, fDefinition, isGlobal );
-        }
+        
+        return executeWithScope( runtime, isGlobal );
     }
 
     ObjectValue executeWithScope( Runtime& runtime, bool isGlobal )
     {
-        auto* fDefinition = runtime.m_currentNamespace->getFunctionDef( m_functionName, m_namespaceSpec );
-        if ( fDefinition == nullptr )
+        FuncDefinition* funcDef = nullptr;
+
+        assert( !m_namespaceSpec.empty() );
+
+        Namespace* namespaceDef = runtime.m_currentNamespace2;
+
+        // ::func()
+        if ( m_namespaceSpec[0].empty() )
+        {
+            if ( m_namespaceSpec.size() == 1 )
+            {
+                namespaceDef = &runtime.m_topLevelNamespace;
+            }
+            else
+            {
+                namespaceDef = runtime.m_topLevelNamespace.getNamespace( m_namespaceSpec.begin()+1, m_namespaceSpec.end() );
+            }
+            funcDef = namespaceDef->getFunctionDefInThisNamespace( m_functionName );
+        }
+        else
+        {
+            funcDef = namespaceDef->getFunctionDef( m_functionName, m_namespaceSpec );
+        }
+        
+        if ( funcDef == nullptr )
         {
             throw runtime_error( runtime, "unknow function: ", m_token );
         }
-        FunctionCall::execute( runtime, fDefinition, isGlobal );
+
+        auto oldCurrentNamespace = runtime.m_currentNamespace2;
+        runtime.m_currentNamespace2 = namespaceDef;
+        //{
+            auto result = FunctionCall::doExecute( runtime, funcDef, isGlobal );
+        //}
+        runtime.m_currentNamespace2 = oldCurrentNamespace;
+
+        return result;
     }
 
-    ObjectValue execute( Runtime& runtime, FuncDefinition* fDefinition, bool isGlobal )
+    ObjectValue doExecute( Runtime& runtime, FuncDefinition* fDefinition, bool isGlobal )
     {
         runtime.m_localVarStack.push_back({});
 

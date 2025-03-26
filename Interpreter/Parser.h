@@ -462,8 +462,10 @@ protected:
         // 2-d pass of shunting-yard algorithm
         auto* result = constructExpr();
         
-        result->printExpr();
-        LOGX("\n");
+        // Print parsed expr
+        //result->printExpr("");
+        //LOGX("\n");
+
         return result;
     }
     
@@ -1118,7 +1120,7 @@ protected:
             _shiftToNextToken();
             func->m_name = m_tokenIt->lexeme;
 
-            if ( auto it = currentNamespace().m_functionMap.find(func->m_name); it != currentNamespace().m_functionMap.end() )
+            if ( auto it = currentNamespace().m_functionMap.find( func->m_name); it != currentNamespace().m_functionMap.end() )
             {
                 throw syntax_error( this, std::string("function with same name already exist: "), *m_tokenIt );
             }
