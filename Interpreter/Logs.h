@@ -19,7 +19,7 @@ inline std::mutex gLogMutex;
 #endif
 
 #ifndef LOGX
-#define LOGX( expr ) {}
+    //#define LOGX( expr ) {}
     #define LOGX( expr ) \
     {\
         std::lock_guard<std::mutex> lock(gLogMutex);\

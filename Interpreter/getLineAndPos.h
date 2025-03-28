@@ -32,7 +32,7 @@ inline void getLineAndPos( const std::string_view text, const Token& token, int&
 
         if( p == token.lexeme.data() )
         {
-            endPos = pos + token.lexeme.size();
+            endPos = pos + int(token.lexeme.size());
             return;
         }
     }

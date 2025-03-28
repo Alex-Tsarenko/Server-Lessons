@@ -33,7 +33,7 @@ struct GlobalVariableMap
 {
     std::map<std::string_view,GlobalVariableMap> m_nestedNamespaceMap;
 
-    std::map<std::string,ObjectValue>       m_namespaceGlobalVariableMap;
+    std::map<std::string_view,ObjectValue>       m_namespaceGlobalVariableMap;
 
     //todo get code from namespace
 };
@@ -43,12 +43,12 @@ struct Runtime
     const std::string_view m_programText;
 
     Namespace&          m_topLevelNamespace;
-    GlobalVariableMap   m_globalVariableMap;
+    GlobalVariableMap   m_globalVariableMap; //todo
 
     Namespace*          m_currentNamespace2 = nullptr;
 
     //???
-    using LocalVarStack = std::vector< std::map<std::string,ObjectValue> >;
+    using LocalVarStack = std::vector< std::map<std::string_view,ObjectValue> >;
     LocalVarStack       m_localVarStack;
 
     Runtime( const std::string_view& programText, Namespace& globaNamespace ) : m_programText(programText), m_topLevelNamespace(globaNamespace) {}

@@ -22,6 +22,7 @@ add_executable(Interpreter
   Logs.h
   Namespace.h
   ObjectValue.h
+  ObjectValue.cpp
   ClassObject.h
   Parser.h
   Token.h

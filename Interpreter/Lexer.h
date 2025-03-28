@@ -422,7 +422,7 @@ public:
                         while( *m_ptr != '\n' && *m_ptr != '\r' ) m_ptr++;
 
                         #ifndef IGNORE_COMMENTS
-                            addToken( Token{ TokenType::Comment, std::string(start,m_ptr) } );
+                            addToken( Token{ TokenType::Comment, std::string_view(start,m_ptr) } );
                         #endif
                     }
                     else if ( ifNext('=') )

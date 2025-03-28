@@ -8,6 +8,7 @@
 #include "ObjectValue.h"
 
 #include "Token.h"
+#include "Namespace.h"
 #include "Runtime.h"
 #include "Error.h"
 #include "Logs.h"
@@ -25,11 +26,11 @@ inline const char* getLineEnd( const char* text )
 }
 
 
-inline std::string getLine( const char* text, int lineNumber )
+inline std::string_view getLine( const char* text, int lineNumber )
 {
     if ( lineNumber == 0)
     {
-        return std::string( text, getLineEnd(text) );
+        return std::string_view( text, getLineEnd(text) );
     }
     
     int number = 0;
@@ -47,7 +48,7 @@ inline std::string getLine( const char* text, int lineNumber )
             //todo '\r'
             if ( number == lineNumber )
             {
-                return std::string( ptr+1, getLineEnd(ptr+1) );
+                return std::string_view( ptr+1, getLineEnd(ptr+1) );
             }
         }
     }
@@ -424,11 +425,12 @@ struct BinaryOpExpression: public Expression
 
 struct VarDeclaration: public Expression
 {
-    VarDeclaration( const Token& token, const std::string& varType ) : Expression(token), m_identifierName(token.lexeme), m_type(varType) {}
-    
-    std::string   m_identifierName;
-    std::string   m_type;
-    Expression*   m_initValue;
+    VarDeclaration( const Token& token, const std::string_view& varType ) : Expression(token), m_identifierName(token.lexeme), m_type(varType) {}
+
+    std::string_view   m_identifierName;
+    std::string_view   m_type;
+    Expression*        m_initValue;
+    bool               m_isPrivate = false;
     //TODO: Value
     
     ObjectValue execute( Runtime& runtime, bool isGlobal ) override
@@ -445,18 +447,18 @@ struct VarDeclaration: public Expression
 
 struct Argument
 {
-    std::string m_name;
-    std::string m_type;
-    std::string m_defaultValue;
+    std::string_view m_name;
+    std::string_view m_type;
+//    std::string_view m_defaultValue;
 };
 
 struct Identifier : public Expression
 {
     Identifier( const Token& token ) : Expression(token), m_name(token.lexeme) {}
 
-    std::string     m_name;
-    std::string     m_type;
-    
+    std::string_view     m_name;
+    std::string_view     m_type;
+
     virtual enum ExpressionType type() override { return et_identifier; }
     
     virtual void evaluate() override
@@ -601,8 +603,8 @@ struct FloatNumber : public Expression
 
 struct String : public Expression
 {
-    std::string m_value;
-    
+    std::string_view m_value;
+
     String( const Token& lexeme ) : Expression(lexeme)
     {
         m_value = m_token.lexeme;
@@ -610,7 +612,7 @@ struct String : public Expression
     
     String( const Token& lexeme, const char* begin, const char* end ) : Expression(lexeme)
     {
-        m_value = std::string( begin, end );
+        m_value = std::string_view( begin, end );
     }
     
     virtual enum ExpressionType type() override { return et_string; }
@@ -637,10 +639,12 @@ struct String : public Expression
 
 struct FuncDefinition : public Expression
 {
-    std::string             m_name;
+    std::string_view        m_name;
     std::vector<Argument>   m_argList;
     ExpressionList          m_body;
-    
+    bool                    m_isPrivate = false;
+    Namespace*              m_whereFuctionWasDefined = nullptr;
+
     ObjectValue execute( Runtime& runtime, bool isGlobal ) override
     {
         auto result = runtime.m_topLevelNamespace.m_functionMap.emplace( m_name, this);
@@ -655,18 +659,12 @@ struct FuncDefinition : public Expression
     }
 };
 
-struct ClassDefinition : public Expression
+struct ClassDefinition : public Expression, public NamespaceBase
 {
     struct BaseClassInfo
     {
-        bool        m_isPrivate;
-        std::string m_name;
-    };
-    
-    struct VarInfo
-    {
-        bool                m_isPrivate;
-        VarDeclaration*  m_var;
+        bool             m_isPrivate;
+        std::string_view m_name;
     };
     
     struct ConstructorInfo: FuncDefinition
@@ -675,30 +673,22 @@ struct ClassDefinition : public Expression
         std::vector<Expression*>    m_baseClassInitList;
     };
 
-    struct FuncInfo
-    {
-        bool            m_isPrivate;
-        FuncDefinition* m_var;
-    };
-
-    std::string                 m_name;
-    std::vector<std::string>    m_outerClasses;
+    std::string_view                m_name;
+    std::vector<std::string_view>   m_outerClasses;
 
     std::vector<ConstructorInfo*>   m_constuctors;
 
     // members
     std::vector<BaseClassInfo>      m_baseClasses;
-    std::vector<VarInfo>            m_vars;
-    std::vector<FuncInfo>           m_funcs;
     
-    std::map<std::string,ClassDefinition*> m_innerClasses;
+    std::map<std::string_view,ClassDefinition*> m_innerClasses;
 
     ClassDefinition( const Token& lexeme ) : Expression(lexeme), m_name(lexeme.lexeme) {}
-    ClassDefinition( const Token& lexeme, const std::string& outerClassName, const std::vector<std::string>& outerClasses  )
+    ClassDefinition( const Token& lexeme, const std::string_view& outerClassName, const std::vector<std::string_view>& outerClasses  )
         : Expression(lexeme),
           m_name(lexeme.lexeme)
     {
-        m_outerClasses = std::vector<std::string>{ outerClasses };
+        m_outerClasses = std::vector<std::string_view>{ outerClasses };
         m_outerClasses.push_back( outerClassName );
     }
 
@@ -709,7 +699,7 @@ struct ClassDefinition : public Expression
 
 struct AssignmentStatement: public Expression
 {
-    std::string                 m_varName;
+    std::string_view            m_varName;
     expr::Expression*           m_expr = nullptr;
     
     AssignmentStatement( const Token& token ) : Expression(token), m_varName(token.lexeme) {}
@@ -725,7 +715,7 @@ struct AssignmentStatement: public Expression
 // Binary expression with unary operator
 struct FunctionCall: public Expression
 {
-    std::string                 m_functionName;
+    std::string_view            m_functionName;
     std::vector<Expression*>    m_parameters;
 
     std::vector<std::string_view>   m_namespaceSpec;
@@ -763,7 +753,7 @@ struct FunctionCall: public Expression
 
                     if ( ptr==end )
                     {
-                        m_functionName = std::string{ begin, ptr };
+                        m_functionName = std::string_view{ begin, ptr };
                     }
                     else
                     {
@@ -805,28 +795,11 @@ struct FunctionCall: public Expression
     
     ObjectValue execute( Runtime& runtime, bool isGlobal ) override
     {
-        if ( m_namespaceSpec.empty() )
-        {
-            auto* fDefinition = runtime.m_currentNamespace2->getFunctionDef( m_functionName );
-
-            if ( fDefinition == nullptr )
-            {
-                throw runtime_error( runtime, "unknow function: ", m_token );
-            }
-            FunctionCall::doExecute( runtime, fDefinition, isGlobal );
-            return;
-        }
-        
-        return executeWithScope( runtime, isGlobal );
-    }
-
-    ObjectValue executeWithScope( Runtime& runtime, bool isGlobal )
-    {
         FuncDefinition* funcDef = nullptr;
 
         assert( !m_namespaceSpec.empty() );
 
-        Namespace* namespaceDef = runtime.m_currentNamespace2;
+        NamespaceBase* namespaceDef = runtime.m_currentNamespace2;
 
         // ::func()
         if ( m_namespaceSpec[0].empty() )
@@ -839,11 +812,11 @@ struct FunctionCall: public Expression
             {
                 namespaceDef = runtime.m_topLevelNamespace.getNamespace( m_namespaceSpec.begin()+1, m_namespaceSpec.end() );
             }
-            funcDef = namespaceDef->getFunctionDefInThisNamespace( m_functionName );
+            funcDef = namespaceDef->getFunctionDef( m_functionName );
         }
         else
         {
-            funcDef = namespaceDef->getFunctionDef( m_functionName, m_namespaceSpec );
+            funcDef = runtime.m_currentNamespace2->getFunctionDef( m_functionName, m_namespaceSpec );
         }
         
         if ( funcDef == nullptr )
@@ -852,7 +825,7 @@ struct FunctionCall: public Expression
         }
 
         auto oldCurrentNamespace = runtime.m_currentNamespace2;
-        runtime.m_currentNamespace2 = namespaceDef;
+        runtime.m_currentNamespace2 = funcDef->m_whereFuctionWasDefined;
         //{
             auto result = FunctionCall::doExecute( runtime, funcDef, isGlobal );
         //}

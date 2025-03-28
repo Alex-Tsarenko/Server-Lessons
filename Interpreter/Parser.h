@@ -805,15 +805,15 @@ protected:
         _shiftToNextTokenIf( Identifier );
         const Token& namespaceName = *m_tokenIt;
 
-        auto it = currentNamespace().m_innerNamespaceMap.find( std::string{namespaceName.lexeme} );
+        auto it = currentNamespace().m_innerNamespaceMap.find( namespaceName.lexeme );
         if ( it != currentNamespace().m_innerNamespaceMap.end() )
         {
             m_namespaceStack.push( &it->second );
         }
         else
         {
-            currentNamespace().m_innerNamespaceMap[ std::string{namespaceName.lexeme} ] = { std::string{namespaceName.lexeme}, &currentNamespace() };
-            m_namespaceStack.push( &currentNamespace().m_innerNamespaceMap[std::string{namespaceName.lexeme}] );
+            currentNamespace().m_innerNamespaceMap[ namespaceName.lexeme ] = Namespace{ namespaceName.lexeme, &currentNamespace() };
+            m_namespaceStack.push( &currentNamespace().m_innerNamespaceMap[namespaceName.lexeme] );
         }
 
         _shiftToNextTokenIf( LeftBrace );
@@ -846,7 +846,7 @@ protected:
         }
         
         const Token& varName = *m_tokenIt;
-        std::string varType;
+        std::string_view varType;
         expr::Expression* expr = nullptr;
 
         _shiftToNextToken();
@@ -949,7 +949,7 @@ protected:
                 }
                 
                 // Base class name
-                classDefinition->m_baseClasses.push_back( { isPrivate, std::string{(m_tokenIt)->lexeme} } );
+                classDefinition->m_baseClasses.push_back( { isPrivate, (m_tokenIt)->lexeme } );
             }
         }
 
@@ -991,13 +991,15 @@ protected:
                 {
                     // parse variable
                     auto* varDef = parseVar( true );
-                    classDefinition->m_vars.push_back( {isPrivate,varDef} );
+                    varDef->m_isPrivate = isPrivate;
+                    classDefinition->m_variableMap[varDef->m_identifierName] = varDef;
                 }
             }
             else if ( tokenIs(Func) )
             {
                 auto* funcDef = parseFuncDef< expr::FuncDefinition >();
-                classDefinition->m_funcs.push_back( {isPrivate,funcDef} );
+                funcDef->m_isPrivate = isPrivate;
+                classDefinition->m_functionMap[funcDef->m_name] = funcDef;
             }
             else if ( tokenIs(ClassKw) )
             {
@@ -1116,6 +1118,8 @@ protected:
         auto* func = new T{};
         if constexpr (std::is_same<T, expr::FuncDefinition>::value)
         {
+            func->m_whereFuctionWasDefined = &currentNamespace();
+
             // Save function name
             _shiftToNextToken();
             func->m_name = m_tokenIt->lexeme;
@@ -1145,7 +1149,7 @@ protected:
             }
 
             // Argument name
-            std::string name = std::string{m_tokenIt->lexeme};
+            std::string_view name = m_tokenIt->lexeme;
 
             _shiftToNextTokenIf( Colon );
 
@@ -1153,7 +1157,7 @@ protected:
             _shiftToNextToken();
             tokenMustBeType();
             
-            auto argType = std::string{m_tokenIt->lexeme};
+            auto argType = m_tokenIt->lexeme;
             LOG( "argument: " << name << " Type: " << argType )
             func->m_argList.emplace_back( expr::Argument{std::move(name), argType} );
 

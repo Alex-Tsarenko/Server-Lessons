@@ -12,7 +12,7 @@ namespace A1
     namespace A2
     {
         //func test() { A1::f11(); }
-        func test() { print("TEST: \(A1::f11())\n"; }
+        func test() { print("TEST: \(::A1::f11())\n"; }
 
         namespace A1
         {

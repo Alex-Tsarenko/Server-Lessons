@@ -50,18 +50,7 @@ struct ObjectValue
         m_stringValue = nullptr;
     }
 
-    ~ObjectValue()
-    {
-        if ( m_type == ot_string )
-        {
-            delete m_stringValue;
-        }
-        else if ( m_type == ot_class )
-        {
-            //todo++ Deleting pointer to incomplete type 'ClassObject' may cause undefined behavior
-            delete m_classObject;
-        }
-    }
+    ~ObjectValue();
 
     std::string pstring()
     {
