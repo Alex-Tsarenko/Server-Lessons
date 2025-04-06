@@ -2,11 +2,11 @@
 
 #include "TokenType.h"
 #include "TokenTypeStrings.h"
-#include "ClassObject.h"
-#include "Namespace.h"
+//#include "ClassObject.h"
 #include "getLineAndPos.h"
 #include <map>
 #include <stack>
+#include <vector>
 
 namespace expr
 {
@@ -14,6 +14,7 @@ namespace expr
     struct VarDeclaration;
     struct ClassDefinition;
     struct Expression;
+    struct ClassOrNamespace;
 }
 
 struct circular_reference_error: public std::runtime_error
@@ -29,29 +30,19 @@ struct circular_reference_error: public std::runtime_error
 
 struct ObjectValue;
 
-struct GlobalVariableMap
-{
-    std::map<std::string_view,GlobalVariableMap> m_nestedNamespaceMap;
-
-    std::map<std::string_view,ObjectValue>       m_namespaceGlobalVariableMap;
-
-    //todo get code from namespace
-};
-
 struct Runtime
 {
     const std::string_view m_programText;
 
-    Namespace&          m_topLevelNamespace;
-    GlobalVariableMap   m_globalVariableMap; //todo
+    expr::ClassOrNamespace&   m_topLevelNamespace; // must be namespace with empty name
 
-    Namespace*          m_currentNamespace2 = nullptr;
+    expr::ClassOrNamespace*   m_currentNamespace2 = nullptr;
 
     //???
     using LocalVarStack = std::vector< std::map<std::string_view,ObjectValue> >;
     LocalVarStack       m_localVarStack;
 
-    Runtime( const std::string_view& programText, Namespace& globaNamespace ) : m_programText(programText), m_topLevelNamespace(globaNamespace) {}
+    Runtime( const std::string_view& programText, expr::ClassOrNamespace& globaNamespace ) : m_programText(programText), m_topLevelNamespace(globaNamespace) {}
 
     void initGlobalVariables();
 
@@ -63,5 +54,5 @@ struct Runtime
     }
 
 private:
-    void initGlobalVariablesR( Namespace& namespaceRef );
+    void initGlobalVariablesR( expr::ClassOrNamespace& namespaceRef );
 };

@@ -27,21 +27,33 @@ struct runtime_ex3 : std::runtime_error
 #define RUNTIME_EX2(message) throw runtime_ex( message );
 #define RUNTIME_EX3(message,token) throw runtime_ex3( message,token );
 
-enum ObjectType : uint8_t { ot_null, ot_bool, ot_int, ot_double, ot_string, ot_class };
+enum ObjectType : uint8_t { ot_null, ot_bool, ot_int, ot_double, ot_string, ot_class_ptr, ot_class_shared_ptr, ot_class_weak_ptr };
 
 struct ClassObject;
+
+//class SomeClass
+//{
+//    ClassA      m_a;      // value
+//    ClassA&     m_aPtr;   // shared ptr
+//    ClassA&&    m_aPtr;   // weak ptr
+//}
 
 struct ObjectValue
 {
     ObjectType m_type;
     uint8_t    m_isReturned = 0;
 
-    union {
-        bool        m_boolValue;
-        uint64_t    m_intValue;
-        double      m_doubleValue;
-        std::string* m_stringValue;
-        ClassObject* m_classObject;
+    union 
+    {
+        bool            m_boolValue;
+        uint64_t        m_intValue;
+        double          m_doubleValue;
+
+        std::string*    m_stringValue;
+
+        ClassObject*                 m_classPtr;
+        std::shared_ptr<ClassObject>* m_classSharedPtr;
+        std::weak_ptr<ClassObject>*   m_clasWeakPtr;
     };
     
     ObjectValue()
@@ -51,6 +63,47 @@ struct ObjectValue
     }
 
     ~ObjectValue();
+
+    ObjectValue( ObjectValue& val )
+    {
+        *this = val;
+    }
+
+    ObjectValue( ObjectValue&& val )
+    {
+        *this = std::move(val);
+    }
+
+    ObjectValue& operator=( const ObjectValue& val )
+    {
+        m_type = val.m_type;
+
+        switch( m_type )
+        {
+            case ot_null:   break;
+            case ot_bool:   m_boolValue = val.m_boolValue; break;
+            case ot_int:    m_intValue = val.m_intValue; break;
+            case ot_double: m_doubleValue = val.m_doubleValue; break;
+            case ot_string: m_stringValue = new std::string{ *val.m_stringValue}; break;
+            case ot_class_ptr:  /*TODO:*/ break;
+        }
+        return *this;
+    }
+
+    ObjectValue& operator=( const ObjectValue&& val )
+    {
+        m_type = val.m_type;
+
+        switch( m_type )
+        {
+            case ot_null:   break;
+            case ot_bool:   m_boolValue = val.m_boolValue; break;
+            case ot_int:    m_intValue = val.m_intValue; break;
+            case ot_double: m_doubleValue = val.m_doubleValue; break;
+            case ot_string: m_stringValue = val.m_stringValue; m_stringValue = nullptr; break;
+        }
+        return *this;
+    }
 
     std::string pstring()
     {

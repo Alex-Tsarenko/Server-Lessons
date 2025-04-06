@@ -20,7 +20,7 @@ add_executable(Interpreter
   Error.cpp
   Lexer.h
   Logs.h
-  Namespace.h
+  ClassOrNamespace.h
   ObjectValue.h
   ObjectValue.cpp
   ClassObject.h

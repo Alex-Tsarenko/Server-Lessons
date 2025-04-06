@@ -8,7 +8,6 @@
 #include "ObjectValue.h"
 
 #include "Token.h"
-#include "Namespace.h"
 #include "Runtime.h"
 #include "Error.h"
 #include "Logs.h"
@@ -121,6 +120,9 @@ struct Expression
     virtual ObjectValue execute( Runtime&, bool isGlobal ) = 0;
 };
 
+#include "ClassOrNamespace.h"
+
+
 struct HelpExpression: Expression
 {
     HelpExpression( const Token& token ) : Expression(token) {};
@@ -221,9 +223,9 @@ struct PrintFuncCall: public Expression
     {
         for( auto* expr: m_list )
         {
-            //LOG("PrintFunc item: " << (void*)expr )
+            LOG("PrintFunc item: " << (void*)expr )
             ObjectValue value = expr->execute( runtime, isGlobal );
-            //LOG("PrintFunc item: " << value.pstring() )
+            LOG("PrintFunc item: " << value.pstring() )
 
             value.toStream( std::cout );
         }
@@ -427,10 +429,12 @@ struct VarDeclaration: public Expression
 {
     VarDeclaration( const Token& token, const std::string_view& varType ) : Expression(token), m_identifierName(token.lexeme), m_type(varType) {}
 
+    bool               m_isPrivate = false;
+    bool               m_isStatic = false;
+
     std::string_view   m_identifierName;
     std::string_view   m_type;
     Expression*        m_initValue;
-    bool               m_isPrivate = false;
     //TODO: Value
     
     ObjectValue execute( Runtime& runtime, bool isGlobal ) override
@@ -452,12 +456,70 @@ struct Argument
 //    std::string_view m_defaultValue;
 };
 
+
+inline void initIdentifierWithScope( const Token& token, std::string_view& identifierName, std::vector<std::string_view>& namespaceSpec )
+{
+    LOG( "??: " << token.lexeme );
+    bool scopeOp = false;
+    auto end = token.lexeme.data() + token.lexeme.size();
+    for( const char* ptr = token.lexeme.data(); ptr < end; ptr++ )
+    {
+        if ( *ptr == ':' )
+        {
+            assert( *(ptr+1) == ':' );
+            assert( !scopeOp );
+            ptr++;
+            if ( namespaceSpec.empty() )
+            {
+                namespaceSpec.push_back( std::string_view{ ptr, 0 } );
+            }
+            scopeOp = true;
+        }
+        else
+        {
+            assert( scopeOp || namespaceSpec.empty() );
+
+            auto* begin = ptr;
+            while( ptr < end and ( isalpha(*ptr) or *ptr == '_' or isdigit(*ptr) ) )
+            {
+                ptr++;
+            }
+            assert( begin < ptr );
+
+            if ( ptr==end )
+            {
+                identifierName = std::string_view{ begin, ptr };
+            }
+            else
+            {
+                namespaceSpec.push_back( std::string_view{ begin, ptr } );
+                ptr--;
+            }
+
+            scopeOp = false;
+        }
+    }
+}
+
 struct Identifier : public Expression
 {
-    Identifier( const Token& token ) : Expression(token), m_name(token.lexeme) {}
-
     std::string_view     m_name;
     std::string_view     m_type;
+
+    std::vector<std::string_view>   m_namespaceSpec;
+
+    Identifier( const Token& token ) : Expression(token)
+    {
+        if ( token.type == IdentifierWithScope )
+        {
+            initIdentifierWithScope( token, m_name, m_namespaceSpec );
+        }
+        else
+        {
+            m_name = token.lexeme;
+        }
+    }
+
 
     virtual enum ExpressionType type() override { return et_identifier; }
     
@@ -491,7 +553,7 @@ struct Identifier : public Expression
                 for(;;)
                 {
                     LOG( "-- runtime.m_currentNamespace : " << runtime.m_currentNamespace2->m_name )
-                    if ( runtime.m_currentNamespace2 = runtime.m_currentNamespace2->m_parentNamespace; runtime.m_currentNamespace2 == nullptr )
+                    if ( runtime.m_currentNamespace2 = runtime.m_currentNamespace2->m_parent; runtime.m_currentNamespace2 == nullptr )
                     {
                         LOG( "-- break: runtime.m_currentNamespace"  )
                         break;
@@ -521,17 +583,11 @@ struct Identifier : public Expression
             }
         }
 
-        if ( auto it = runtime.m_globalVariableMap.m_namespaceGlobalVariableMap.find(m_name); it != runtime.m_globalVariableMap.m_namespaceGlobalVariableMap.end() )
+        if ( auto* value = runtime.m_currentNamespace2->getVarValue(m_name, m_namespaceSpec); value != nullptr )
         {
-            return it->second;
+            return *value;
         }
-
-        //TODO
-//        if ( runtime.m_currentNamespace-> findVar(m_name) )
-//        {
-//            throw using_of_uninitialized_variable{ runtime.m_currentNamespace, runtime.m_currentNamespace.findVar(m_name) };
-//        }
-//        else
+        else
         {
             throw runtime_error( runtime, "unknown variable: '" + std::string(m_token.lexeme) + "'", m_token );
         }
@@ -639,11 +695,12 @@ struct String : public Expression
 
 struct FuncDefinition : public Expression
 {
+    bool                    m_isPrivate = false;
+    bool                    m_isStatic = false;
     std::string_view        m_name;
     std::vector<Argument>   m_argList;
     ExpressionList          m_body;
-    bool                    m_isPrivate = false;
-    Namespace*              m_whereFuctionWasDefined = nullptr;
+    ClassOrNamespace*       m_whereFuctionWasDefined = nullptr;
 
     ObjectValue execute( Runtime& runtime, bool isGlobal ) override
     {
@@ -659,7 +716,13 @@ struct FuncDefinition : public Expression
     }
 };
 
-struct ClassDefinition : public Expression, public NamespaceBase
+struct ConstructorInfo: FuncDefinition
+{
+    bool                        m_isPrivate;
+    std::vector<Expression*>    m_baseClassInitList;
+};
+
+struct ClassDefinition : public Expression
 {
     struct BaseClassInfo
     {
@@ -673,9 +736,6 @@ struct ClassDefinition : public Expression, public NamespaceBase
         std::vector<Expression*>    m_baseClassInitList;
     };
 
-    std::string_view                m_name;
-    std::vector<std::string_view>   m_outerClasses;
-
     std::vector<ConstructorInfo*>   m_constuctors;
 
     // members
@@ -683,13 +743,10 @@ struct ClassDefinition : public Expression, public NamespaceBase
     
     std::map<std::string_view,ClassDefinition*> m_innerClasses;
 
-    ClassDefinition( const Token& lexeme ) : Expression(lexeme), m_name(lexeme.lexeme) {}
+    ClassDefinition( const Token& lexeme ) : Expression(lexeme)/*, m_name(lexeme.lexeme)*/ {}
     ClassDefinition( const Token& lexeme, const std::string_view& outerClassName, const std::vector<std::string_view>& outerClasses  )
-        : Expression(lexeme),
-          m_name(lexeme.lexeme)
+        : Expression(lexeme)
     {
-        m_outerClasses = std::vector<std::string_view>{ outerClasses };
-        m_outerClasses.push_back( outerClassName );
     }
 
     ObjectValue execute( Runtime& runtime, bool isGlobal ) override
@@ -724,46 +781,7 @@ struct FunctionCall: public Expression
     {
         if ( token.type == IdentifierWithScope )
         {
-            LOG( "??: " << token.lexeme );
-            bool scopeOp = false;
-            auto end = token.lexeme.data() + token.lexeme.size();
-            for( const char* ptr = token.lexeme.data(); ptr < end; ptr++ )
-            {
-                if ( *ptr == ':' )
-                {
-                    assert( *(ptr+1) == ':' );
-                    assert( !scopeOp );
-                    ptr++;
-                    if ( m_namespaceSpec.empty() )
-                    {
-                        m_namespaceSpec.push_back( std::string_view{ ptr, 0 } );
-                    }
-                    scopeOp = true;
-                }
-                else
-                {
-                    assert( scopeOp || m_namespaceSpec.empty() );
-
-                    auto* begin = ptr;
-                    while( ptr < end and ( isalpha(*ptr) or *ptr == '_' or isdigit(*ptr) ) )
-                    {
-                        ptr++;
-                    }
-                    assert( begin < ptr );
-
-                    if ( ptr==end )
-                    {
-                        m_functionName = std::string_view{ begin, ptr };
-                    }
-                    else
-                    {
-                        m_namespaceSpec.push_back( std::string_view{ begin, ptr } );
-                        ptr--;
-                    }
-
-                    scopeOp = false;
-                }
-            }
+            initIdentifierWithScope( token, m_functionName, m_namespaceSpec );
         }
         else
         {
@@ -797,28 +815,9 @@ struct FunctionCall: public Expression
     {
         FuncDefinition* funcDef = nullptr;
 
-        assert( !m_namespaceSpec.empty() );
-
-        NamespaceBase* namespaceDef = runtime.m_currentNamespace2;
-
         // ::func()
-        if ( m_namespaceSpec[0].empty() )
-        {
-            if ( m_namespaceSpec.size() == 1 )
-            {
-                namespaceDef = &runtime.m_topLevelNamespace;
-            }
-            else
-            {
-                namespaceDef = runtime.m_topLevelNamespace.getNamespace( m_namespaceSpec.begin()+1, m_namespaceSpec.end() );
-            }
-            funcDef = namespaceDef->getFunctionDef( m_functionName );
-        }
-        else
-        {
-            funcDef = runtime.m_currentNamespace2->getFunctionDef( m_functionName, m_namespaceSpec );
-        }
-        
+        funcDef = runtime.m_currentNamespace2->getFunctionDef( m_functionName, m_namespaceSpec );
+
         if ( funcDef == nullptr )
         {
             throw runtime_error( runtime, "unknow function: ", m_token );
@@ -908,3 +907,4 @@ struct Print : public Expression
 };
 
 }
+

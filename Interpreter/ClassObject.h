@@ -3,46 +3,21 @@
 #include <map>
 #include <string>
 #include "ObjectValue.h"
+#include "Expr.h"
+
 
 struct ClassObject
 {
-    ~ClassObject() { m_members.clear(); }
+    expr::ClassOrNamespace*              m_definition; // must be class
+    std::map<std::string_view,ObjectValue>    m_members;
 
-    struct ClassMember {
-        enum Type { value, shared_ptr, weak_ptr };
-        Type m_type;
-
-        ~ClassMember()
+    ClassObject( expr::ClassOrNamespace* definition ) : m_definition(definition)
+    {
+        for( auto& [name,varDecl] : definition->m_variableMap )
         {
-            switch( m_type )
-            {
-                case value:
-                    m_value.~ObjectValue();
-                    break;
-                case shared_ptr:
-                    using namespace std;
-                    m_sharedPtrValue.~shared_ptr<ObjectValue>();
-                    break;
-                case weak_ptr:
-                    using namespace std;
-                    m_weakPtrValue.~weak_ptr<ObjectValue>();
-                    break;
-            }
+            m_members[name] = ObjectValue();
         }
+    }
 
-        union {
-            ObjectValue                  m_value;
-            std::shared_ptr<ObjectValue> m_sharedPtrValue;
-            std::weak_ptr<ObjectValue>   m_weakPtrValue;
-        };
-    };
-    expr::ClassDefinition*              m_definition; // for accessto funcs
-    std::map<std::string,ClassMember>   m_members;
+    ~ClassObject() { m_members.clear(); }
 };
-
-//class X
-//{
-//    ClassA      m_a;
-//    ClassA&     m_aPtr;
-//    ClassA&&    m_aPtr;
-//}

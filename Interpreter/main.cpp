@@ -226,6 +226,11 @@ std::string readFile( std::string fileName )
 
 int main()
 {
+//    std::shared_ptr<int> a = std::make_shared<int>(1);
+//    std::cout << sizeof(a) << std::endl;
+//    std::string s = "";
+//    std::cout << sizeof(s) << std::endl;
+
     std::string testStr = readFile("/Users/alex2/C++/Server-Lessons/Interpreter/test.h");
     Lexer lexer{ testStr.data(), testStr.data()+testStr.size() };
     lexer.run();
@@ -239,7 +244,7 @@ int main()
 //        LOG( "#### " << gTokenTypeStrings[token.type] << " # " << token.line << " " << token.pos << " "<< token.endPos )
     }
 
-    Namespace globalNamespace;
+    expr::ClassOrNamespace globalNamespace;
     Parser  parser{globalNamespace};
     parser.parseProgram( testStr.data(), lexer.tokens() );
     

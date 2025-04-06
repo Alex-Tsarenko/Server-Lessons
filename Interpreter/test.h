@@ -1,18 +1,29 @@
 
 func main()
 {
-    ::A1::A2::test();
+    //::A1::A2::test();
     //print("TEST: \(A1::A2::f11())\n";
+    ClassA a;
+    print("TEST: \(a.m_int)\n";
+}
+
+class ClassA
+{
+    var m_int: 0;
+    
+    func f() { return "class-a";}
 }
 
 namespace A1
 {
     func f11() { return 101; }
+    var x = "var-x";
+
 
     namespace A2
     {
         //func test() { A1::f11(); }
-        func test() { print("TEST: \(::A1::f11())\n"; }
+        func test() { print("TEST: \(::A1::f11()) \(::A1::x)             \n"; }
 
         namespace A1
         {

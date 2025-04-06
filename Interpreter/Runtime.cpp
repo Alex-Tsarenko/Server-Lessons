@@ -1,7 +1,7 @@
 #include "Runtime.h"
 #include "Expr.h"
 
-void Runtime::initGlobalVariablesR( Namespace& namespaceRef )
+void Runtime::initGlobalVariablesR( expr::ClassOrNamespace& namespaceRef )
 {
     m_currentNamespace2 = &namespaceRef;
 
@@ -17,44 +17,30 @@ void Runtime::initGlobalVariablesR( Namespace& namespaceRef )
     }
 
     // init nested namespaces
-    for( auto& [name,namespaceRef]: namespaceRef.m_innerNamespaceMap )
+    for( auto& [name,namespaceRef]: namespaceRef.m_namespaceMap )
     {
-        initGlobalVariablesR( namespaceRef );
+        initGlobalVariablesR( *namespaceRef );
     }
 
     m_currentNamespace2 = &namespaceRef;
 }
 
-void prepareVarMapToInitializationR( Namespace& namespaceRef )
+void prepareVarMapToInitializationR( expr::ClassOrNamespace& namespaceRef )
 {
     for( auto& [variableName,varDecl]: namespaceRef.m_variableMap )
     {
         namespaceRef.m_initializationVariableMap[variableName] = false;
     }
 
-    for( auto& [namespaceName,namespaceRef]:  namespaceRef.m_innerNamespaceMap )
+    for( auto& [namespaceName,namespaceRef]:  namespaceRef.m_namespaceMap )
     {
-        prepareVarMapToInitializationR( namespaceRef );
-    }
-}
-
-void moveVariableValuesToRuntimeR( Namespace& namespaceRef, GlobalVariableMap& globalVariableMap )
-{
-    globalVariableMap.m_namespaceGlobalVariableMap.clear();
-    globalVariableMap.m_namespaceGlobalVariableMap = std::move( namespaceRef.m_variableValueMap );
-
-    for( auto& [namespaceName,namespaceRef]:  namespaceRef.m_innerNamespaceMap )
-    {
-        globalVariableMap.m_nestedNamespaceMap[namespaceName] = {};
-        moveVariableValuesToRuntimeR( namespaceRef, globalVariableMap.m_nestedNamespaceMap[namespaceName] );
+        prepareVarMapToInitializationR( *namespaceRef );
     }
 }
 
 void Runtime::initGlobalVariables()
 {
     initGlobalVariablesR( m_topLevelNamespace );
- 
-    moveVariableValuesToRuntimeR( m_topLevelNamespace, m_globalVariableMap );
 }
 
 void Runtime::run( const std::vector<expr::Expression*>& code, const std::string& sourceCode )

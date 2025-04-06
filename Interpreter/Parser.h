@@ -12,8 +12,8 @@ struct Parser
 {
     std::string_view        m_programText;
 
-    Namespace&              m_topLevelNamespace;
-    std::stack<Namespace*>  m_namespaceStack;
+    expr::ClassOrNamespace&                 m_topLevelNamespace;
+    std::stack<expr::ClassOrNamespace*>     m_namespaceStack;
 
     std::vector<expr::Expression*>    m_program;
     std::vector<expr::Expression*>*   m_current;
@@ -38,7 +38,7 @@ struct Parser
     std::vector<Lexer*> m_nestedLexers;
     
 public:
-    Parser( Namespace& aNamespace ) : m_topLevelNamespace(aNamespace)
+    Parser( expr::ClassOrNamespace& aNamespace ) : m_topLevelNamespace(aNamespace)
     {
         m_namespaceStack.push( &m_topLevelNamespace );
     }
@@ -51,7 +51,7 @@ public:
         }
     }
 
-    Namespace& currentNamespace()
+    expr::ClassOrNamespace& currentNamespace()
     {
         return *m_namespaceStack.top();
     }
@@ -249,7 +249,7 @@ protected:
                 {
                     auto* varDef = parseVar();
                     LOG( "global Var: " << varDef->m_identifierName )
-                    if ( auto result = currentNamespace().m_variableMap.emplace( varDef->m_identifierName, varDef ); !result.second )
+                    if ( ! currentNamespace().emplaceVar( varDef->m_identifierName, varDef ) )
                     {
                         throw syntax_error( this, std::string("duplicate variable name: "), varDef->m_token );
                     }
@@ -294,10 +294,6 @@ protected:
             case ClassKw:
             {
                 auto* classDefinition = parseClass();
-                if ( auto result = currentNamespace().m_classMap.emplace( classDefinition->m_name, classDefinition ); !result.second )
-                {
-                    throw syntax_error( this, std::string("duplicate class name: "), classDefinition->m_token );
-                }
                 return classDefinition;
             }
             case Identifier:
@@ -805,15 +801,24 @@ protected:
         _shiftToNextTokenIf( Identifier );
         const Token& namespaceName = *m_tokenIt;
 
-        auto it = currentNamespace().m_innerNamespaceMap.find( namespaceName.lexeme );
-        if ( it != currentNamespace().m_innerNamespaceMap.end() )
+        auto it = currentNamespace().m_namespaceMap.find( namespaceName.lexeme );
+        bool alreadyExist = it != currentNamespace().m_namespaceMap.end();
+        if ( alreadyExist  )
         {
-            m_namespaceStack.push( &it->second );
+            if ( it->second->m_isClass )
+            {
+                throw syntax_error( this, std::string("duplicate class name: "), namespaceName );
+            }
+        }
+
+        if ( alreadyExist )
+        {
+            m_namespaceStack.push( it->second );
         }
         else
         {
-            currentNamespace().m_innerNamespaceMap[ namespaceName.lexeme ] = Namespace{ namespaceName.lexeme, &currentNamespace() };
-            m_namespaceStack.push( &currentNamespace().m_innerNamespaceMap[namespaceName.lexeme] );
+            auto* thisClassOrNamespace = currentNamespace().emplaceNamespace( namespaceName.lexeme );
+            m_namespaceStack.push( thisClassOrNamespace );
         }
 
         _shiftToNextTokenIf( LeftBrace );
@@ -901,22 +906,19 @@ protected:
         return new expr::PrintFuncCall{ std::move(arguments) };
     }
     
-    expr::ClassDefinition* parseClass( expr::ClassDefinition* outerClass = nullptr )
+    expr::ClassOrNamespace* parseClass()
     {
         _shiftToNextTokenIf( Identifier );
         const Token& className = *m_tokenIt;
         LOG("className: " << className.lexeme )
-        
+
+        if ( auto it = currentNamespace().m_namespaceMap.find( className.lexeme ); it != currentNamespace().m_namespaceMap.end() )
+        {
+            throw syntax_error( this, std::string("duplicate name: "), className );
+        }
+
         // Create class definition structure
-        expr::ClassDefinition* classDefinition;
-        if ( outerClass == nullptr )
-        {
-            classDefinition = new expr::ClassDefinition{ className };
-        }
-        else
-        {
-            classDefinition = new expr::ClassDefinition{ className, outerClass->m_name, outerClass->m_outerClasses };
-        }
+        expr::ClassOrNamespace* thisClassOrNamespace = new expr::ClassOrNamespace{ true, className.lexeme, &currentNamespace() };
 
         // Parse base classes
         if ( _nextTokenIs(Colon) )
@@ -949,7 +951,7 @@ protected:
                 }
                 
                 // Base class name
-                classDefinition->m_baseClasses.push_back( { isPrivate, (m_tokenIt)->lexeme } );
+                thisClassOrNamespace->m_baseClasses.push_back( { isPrivate, (m_tokenIt)->lexeme } );
             }
         }
 
@@ -983,32 +985,32 @@ protected:
                     {
                         throw syntax_error( this, std::string("inside class unexpected : ") + std::string{m_tokenIt->lexeme}, *m_tokenIt );
                     }
-                    auto* constructorDef = parseFuncDef< expr::ClassDefinition::ConstructorInfo >();
+                    auto* constructorDef = parseFuncDef< expr::ConstructorInfo >();
                     constructorDef->m_isPrivate = isPrivate;
-                    classDefinition->m_constuctors.push_back( constructorDef );
+                    thisClassOrNamespace->m_constuctors.push_back( constructorDef );
                 }
                 else
                 {
                     // parse variable
                     auto* varDef = parseVar( true );
                     varDef->m_isPrivate = isPrivate;
-                    classDefinition->m_variableMap[varDef->m_identifierName] = varDef;
+                    thisClassOrNamespace->m_variableMap[varDef->m_identifierName] = varDef;
                 }
             }
             else if ( tokenIs(Func) )
             {
                 auto* funcDef = parseFuncDef< expr::FuncDefinition >();
                 funcDef->m_isPrivate = isPrivate;
-                classDefinition->m_functionMap[funcDef->m_name] = funcDef;
+                thisClassOrNamespace->m_functionMap[funcDef->m_name] = funcDef;
             }
             else if ( tokenIs(ClassKw) )
             {
                 auto* innerClass = parseClass();
-                auto result = classDefinition->m_innerClasses.emplace( innerClass->m_name, innerClass );
-                if ( !result.second )
-                {
-                    throw syntax_error( this, std::string("duplicate class name: "), innerClass->m_token );
-                }
+                //auto result = thisClassOrNamespace->emplaceClass( innerClass->m_name, innerClass );
+//                if ( !result.second )
+//                {
+//                    throw syntax_error( this, std::string("duplicate class name: "), innerClass->m_token );
+//                }
             }
 //            else if ( tokenIs(Int) || tokenIs(Float) || tokenIs(String) || tokenIs(Identifier) || tokenIs(StringLiteral) )
 //            {
@@ -1024,7 +1026,7 @@ protected:
         assert( m_tokenIt->type == RightBrace );
         _shiftToNextToken();
         
-        return classDefinition;
+        return thisClassOrNamespace;
     }
     
     expr::Expression* parseReturn()
