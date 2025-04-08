@@ -974,28 +974,26 @@ protected:
             //todo++ var&
             if ( tokenIs(Var) )
             {
-                throw syntax_error( this, "unexpected 'var' keyword inside class: ", *m_tokenIt );
-            }
-            else if ( tokenIs(Identifier) )
-            {
-                if ( _nextTokenIs(LeftParen) )
-                {
-                    // parse constructor
-                    if ( ! tokenIs(Identifier) || m_tokenIt->lexeme != "constructor" )
-                    {
-                        throw syntax_error( this, std::string("inside class unexpected : ") + std::string{m_tokenIt->lexeme}, *m_tokenIt );
-                    }
-                    auto* constructorDef = parseFuncDef< expr::ConstructorInfo >();
-                    constructorDef->m_isPrivate = isPrivate;
-                    thisClassOrNamespace->m_constuctors.push_back( constructorDef );
-                }
-                else
-                {
+                _shiftToNextTokenIf(Identifier);
+
+//                if ( _nextTokenIs(LeftParen) )
+//                {
+//                    // parse constructor
+//                    if ( ! tokenIs(Identifier) || m_tokenIt->lexeme != "constructor" )
+//                    {
+//                        throw syntax_error( this, std::string("inside class unexpected : ") + std::string{m_tokenIt->lexeme}, *m_tokenIt );
+//                    }
+//                    auto* constructorDef = parseFuncDef< expr::ConstructorInfo >();
+//                    constructorDef->m_isPrivate = isPrivate;
+//                    thisClassOrNamespace->m_constuctors.push_back( constructorDef );
+//                }
+//                else
+//                {
                     // parse variable
                     auto* varDef = parseVar( true );
                     varDef->m_isPrivate = isPrivate;
                     thisClassOrNamespace->m_variableMap[varDef->m_identifierName] = varDef;
-                }
+//                }
             }
             else if ( tokenIs(Func) )
             {

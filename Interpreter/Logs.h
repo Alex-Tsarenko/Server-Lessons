@@ -4,7 +4,7 @@
 
 inline std::mutex gLogMutex;
 
-#define HIDE_LOGS 1
+//#define HIDE_LOGS 1
 
 #ifndef LOG
     #if HIDE_LOGS

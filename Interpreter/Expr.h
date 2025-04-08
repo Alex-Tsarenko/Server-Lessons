@@ -12,7 +12,6 @@
 #include "Error.h"
 #include "Logs.h"
 
-
 inline const char* getLineEnd( const char* text )
 {
     for( const char* ptr = text; ; ptr++ )
@@ -56,6 +55,8 @@ inline std::string_view getLine( const char* text, int lineNumber )
 struct Namespace;
 
 namespace expr {
+
+void initIdentifierWithScope( const Token& token, std::string_view& identifierName, std::vector<std::string_view>& namespaceSpec );
 
 struct VarDeclaration;
 
@@ -199,10 +200,20 @@ struct ExpressionList: public Expression
         ObjectValue result;
         for( auto& statement: m_list )
         {
+            LOG("statement->m_token: " << statement->m_token.lexeme )
             result = statement->execute( runtime, isGlobal );
             if ( result.m_isReturned )
             {
                 return result;
+            }
+
+            if ( statement->m_token.type == Identifier )
+            {
+                auto pair = runtime.m_localVarStack.back().emplace( statement->m_token.lexeme, result );
+                if ( not pair.second )
+                {
+                    throw runtime_ex( "duplicate local variable: " + std::string(statement->m_token.lexeme) );
+                }
             }
         }
         return result;
@@ -441,6 +452,28 @@ struct VarDeclaration: public Expression
     {
         if ( m_initValue != nullptr )
         {
+            expr::ClassDefinition* classDef = nullptr;
+
+            if ( m_initValue->m_token.type == Identifier )
+            {
+                std::vector<std::string_view> namespaceSpec;
+                classDef = runtime.m_currentNamespace2->getClassDef( m_initValue->m_token.lexeme, namespaceSpec );
+            }
+            else if ( m_initValue->m_token.type == IdentifierWithScope )
+            {
+                std::string_view identifierName;
+                std::vector<std::string_view> namespaceSpec;
+                initIdentifierWithScope( m_initValue->m_token, identifierName, namespaceSpec );
+
+                classDef = runtime.m_currentNamespace2->getClassDef( identifierName, namespaceSpec );
+            }
+
+            if ( classDef != nullptr )
+            {
+//                ObjectValue value = classDef .....;
+//                return value;
+            }
+
             ObjectValue value = m_initValue->execute(runtime, isGlobal);
             return value;
         }

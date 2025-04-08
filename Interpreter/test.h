@@ -3,12 +3,18 @@ func main()
 {
     //::A1::A2::test();
     //print("TEST: \(A1::A2::f11())\n";
-    ClassA a;
+
+    var a = ClassA;
+    var a2 = ::ClassA();
+    //var a: Int = 100;
     print("TEST: \(a.m_int)\n";
+    //print("TEST: \(a)\n";
 }
 
 class ClassA
 {
+    func ClassA() {}
+
     var m_int: 0;
     
     func f() { return "class-a";}
@@ -16,6 +22,7 @@ class ClassA
 
 namespace A1
 {
+//    func f10001( abc ) { return abc; }
     func f11() { return 101; }
     var x = "var-x";
 
