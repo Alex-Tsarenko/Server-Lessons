@@ -352,6 +352,13 @@ public:
                     addToken( TokenType::Comma, {m_ptr,1} );
                     break;
                 case '.':
+//                    if ( m_tokens.back().type == Identifier || m_tokens.back().type == IdentifierWithScope )
+//                    {
+//                        m_tokens.back().type = IdentifierWithScope;
+//                        m_tokens.back().lexeme = std::string_view{ m_tokens.back().lexeme.data(), m_ptr+1 };
+//                        break;
+//                    }
+
                     addToken( TokenType::Dot, {m_ptr,1} );
                     break;
                 case '-':

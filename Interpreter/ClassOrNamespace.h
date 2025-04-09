@@ -19,6 +19,8 @@ struct BaseClassInfo
     std::string_view m_name;
 };
 
+namespace expr {
+
 struct ClassOrNamespace: public Expression
 {
     bool m_isClass = false;
@@ -29,11 +31,11 @@ struct ClassOrNamespace: public Expression
     
     // Map of inner classes or namespaces
     // (for class on inner classes)
-    std::map<std::string_view,ClassOrNamespace*>        m_namespaceMap;
+    std::map<std::string_view,ClassOrNamespace*>    m_namespaceMap;
     
-    std::map<std::string_view,expr::FuncDefinition*>    m_functionMap;
-    std::map< std::string_view, expr::VarDeclaration*>  m_variableMap; // global/static variable map
-    
+    std::map<std::string_view,FuncDefinition*>      m_functionMap;
+    std::map< std::string_view,VarDeclaration*>     m_variableMap; // global/static variable map
+
     // Only for classes
     std::vector<BaseClassInfo>                           m_baseClasses;
     std::vector<ConstructorInfo*>                        m_constuctors;
@@ -64,7 +66,7 @@ public:
         return m_parent->getTopNamespace();
     }
 
-    bool emplaceVar( const std::string_view& name, expr::VarDeclaration* varDecl )
+    bool emplaceVar( const std::string_view& name, VarDeclaration* varDecl )
     {
         auto result = m_variableMap.emplace( name, varDecl );
         return result.second;
@@ -100,7 +102,7 @@ public:
         return nullptr;
     }
     
-    expr::FuncDefinition* getFunctionDef( const std::string_view& name )
+    FuncDefinition* getFunctionDef( const std::string_view& name )
     {
         if ( auto it = m_functionMap.find( name ); it != m_functionMap.end() )
         {
@@ -109,7 +111,7 @@ public:
         return nullptr;
     }
     
-    expr::VarDeclaration* getVarDecl( const std::string_view& name )
+    VarDeclaration* getVarDecl( const std::string_view& name )
     {
         if ( auto it = m_variableMap.find( name ); it != m_variableMap.end() )
         {
@@ -130,7 +132,7 @@ public:
     template<class T>
     T* getInThisNamespace( const std::string_view& name )
     {
-        if constexpr( std::is_same<T, expr::FuncDefinition>::value )
+        if constexpr( std::is_same<T, FuncDefinition>::value )
         {
             return getFunctionDef( name );
         }
@@ -138,7 +140,7 @@ public:
         {
             return getClassOrNamespace( name );
         }
-        if constexpr( std::is_same<T, expr::VarDeclaration>::value )
+        if constexpr( std::is_same<T, VarDeclaration>::value )
         {
             return getVarDecl( name );
         }
@@ -186,19 +188,19 @@ public:
         return nullptr;
     }
     
-    expr::FuncDefinition* getFunctionDef( const std::string_view& name, std::vector<std::string_view>& namespaceSpec )
+    FuncDefinition* getFunctionDef( const std::string_view& name, std::vector<std::string_view>& namespaceSpec )
     {
-        return get<expr::FuncDefinition>( name, namespaceSpec );
+        return get<FuncDefinition>( name, namespaceSpec );
     }
     
-    expr::ClassDefinition* getClassDef( const std::string_view& name, std::vector<std::string_view>& namespaceSpec )
+    ClassOrNamespace* getClassDef( const std::string_view& name, std::vector<std::string_view>& namespaceSpec )
     {
-        return get<expr::ClassDefinition>( name, namespaceSpec );
+        return get<ClassOrNamespace>( name, namespaceSpec );
     }
     
-    expr::VarDeclaration* getVarDecl( const std::string_view& name, std::vector<std::string_view>& namespaceSpec )
+    VarDeclaration* getVarDecl( const std::string_view& name, std::vector<std::string_view>& namespaceSpec )
     {
-        return get<expr::VarDeclaration>( name, namespaceSpec );
+        return get<VarDeclaration>( name, namespaceSpec );
     }
 
     ObjectValue* getVarValue( const std::string_view& name, std::vector<std::string_view>& namespaceSpec )
@@ -247,5 +249,5 @@ public:
     }
 };
 
-//}
+}
 

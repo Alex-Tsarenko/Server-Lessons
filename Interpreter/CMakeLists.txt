@@ -16,6 +16,7 @@ add_executable(Interpreter
   Runtime.h
   Runtime.cpp
   Expr.h
+  Expr.cpp
   Error.h
   Error.cpp
   Lexer.h

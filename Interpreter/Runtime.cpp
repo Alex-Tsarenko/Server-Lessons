@@ -1,5 +1,6 @@
 #include "Runtime.h"
 #include "Expr.h"
+#include "ClassOrNamespace.h"
 
 void Runtime::initGlobalVariablesR( expr::ClassOrNamespace& namespaceRef )
 {
@@ -11,7 +12,7 @@ void Runtime::initGlobalVariablesR( expr::ClassOrNamespace& namespaceRef )
         namespaceRef.m_initializationVariableMap[variableName] = true;
         {
             auto value = var->execute(*this,true);
-            namespaceRef.m_variableValueMap[ var->m_identifierName ] = value;
+            namespaceRef.m_variableValueMap.emplace( var->m_identifierName, value );
         }
         namespaceRef.m_initializationVariableMap[variableName] = false;
     }

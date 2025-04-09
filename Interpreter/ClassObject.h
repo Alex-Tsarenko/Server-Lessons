@@ -8,8 +8,8 @@
 
 struct ClassObject
 {
-    expr::ClassOrNamespace*              m_definition; // must be class
-    std::map<std::string_view,ObjectValue>    m_members;
+    expr::ClassOrNamespace*                 m_definition; // must be class
+    std::map<std::string_view,ObjectValue>  m_members;
 
     ClassObject( expr::ClassOrNamespace* definition ) : m_definition(definition)
     {

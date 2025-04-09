@@ -2,7 +2,6 @@
 
 #include "TokenType.h"
 #include "TokenTypeStrings.h"
-//#include "ClassObject.h"
 #include "getLineAndPos.h"
 #include <map>
 #include <stack>

@@ -294,7 +294,12 @@ protected:
             case ClassKw:
             {
                 auto* classDefinition = parseClass();
-                return classDefinition;
+                auto result = currentNamespace().m_namespaceMap.emplace( classDefinition->m_name, classDefinition );
+                if ( not result.second )
+                {
+                    throw syntax_error( this, "duplicate class/namespace name: ", classDefinition->m_token );
+                }
+                return nullptr;
             }
             case Identifier:
             case IdentifierWithScope:
@@ -504,6 +509,7 @@ protected:
             operatorTokenTable[LeftParen] = 100;
             operatorTokenTable[Identifier] = 100;
 
+            operatorTokenTable[Dot] = 1;
             operatorTokenTable[PlusPlusRight] = 2;
             operatorTokenTable[MinusMinusRight] = 2;
             operatorTokenTable[PlusPlusLeft] = 3;
@@ -564,7 +570,7 @@ protected:
                 case StringLiteral:
                 {
                     LOG( "@@@ Float to output: " << m_tokenIt->lexeme )
-                    m_output.push_back( new expr::String{ *m_tokenIt } );
+                    m_output.push_back( new expr::StringExpr{ *m_tokenIt } );
                     break;
                 }
                 case Identifier:
@@ -591,7 +597,7 @@ protected:
                         // Identifier
                         LOG( "@@@ Identifier to output: " << m_tokenIt->lexeme )
 
-                        m_output.push_back( new expr::Identifier{ *m_tokenIt } );
+                        m_output.push_back( new expr::IdentifierExpr{ *m_tokenIt } );
                     }
                     break;
                 }
@@ -1053,7 +1059,7 @@ protected:
                 if ( *ptr=='(' )
                 {
                     LOG( "dbg0: " << std::string(startOfLiteral, ptr-1) )
-                    result.push_back( new expr::String( printStringToken, startOfLiteral, ptr-1 ));
+                    result.push_back( new expr::StringExpr( printStringToken, startOfLiteral, ptr-1 ));
                     
                     // find right ')'
                     ptr++;
@@ -1106,7 +1112,7 @@ protected:
 
         if ( result.empty() || startOfLiteral!=ptr )
         {
-            result.push_back( new expr::String( printStringToken, startOfLiteral, ptr ));
+            result.push_back( new expr::StringExpr( printStringToken, startOfLiteral, ptr ));
         }
         
         return result;

@@ -4,20 +4,23 @@ func main()
     //::A1::A2::test();
     //print("TEST: \(A1::A2::f11())\n";
 
-    var a = ClassA;
-    var a2 = ::ClassA();
+    //var a = ClassA;
+    var a = ::ns::ClassA();
     //var a: Int = 100;
     print("TEST: \(a.m_int)\n";
     //print("TEST: \(a)\n";
 }
 
-class ClassA
+namespace ns
 {
-    func ClassA() {}
+    class ClassA
+    {
+        func ClassA() {}
 
-    var m_int: 0;
-    
-    func f() { return "class-a";}
+        var m_int: 0;
+
+        func f() { return "class-a";}
+    }
 }
 
 namespace A1

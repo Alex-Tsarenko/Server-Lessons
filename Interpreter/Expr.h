@@ -56,7 +56,7 @@ struct Namespace;
 
 namespace expr {
 
-void initIdentifierWithScope( const Token& token, std::string_view& identifierName, std::vector<std::string_view>& namespaceSpec );
+void parseIdentifierWithScope( const Token& token, std::string_view& identifierName, std::vector<std::string_view>& namespaceSpec );
 
 struct VarDeclaration;
 
@@ -98,17 +98,17 @@ struct Expression
     const Token& m_token;
 
     Expression() : m_token(nilToken) {
-        
+
     };
     Expression( const Token& token ) : m_token(token) {};
- 
+
     virtual ~Expression() {
-        
+
     };
-    
+
 
     virtual enum ExpressionType type() { return et_undefined; }
-    
+
     virtual void evaluate()
     {
         LOG("<Expression evaluate: NIL>");
@@ -117,12 +117,14 @@ struct Expression
     {
         LOG("<Expression evaluate: NIL>");
     }
-    
+
     virtual ObjectValue execute( Runtime&, bool isGlobal ) = 0;
 };
 
+}
 #include "ClassOrNamespace.h"
-
+namespace expr
+{
 
 struct HelpExpression: Expression
 {
@@ -362,6 +364,15 @@ struct BinaryOpExpression: public Expression
 
     ObjectValue execute( Runtime& runtime, bool isGlobal ) override
     {
+        if ( m_token.type == Dot )
+        {
+            LOG( "m_token.type == Dot" );
+            ObjectValue value = m_expr2->execute( runtime, isGlobal );
+            
+            LOG( "m_token.type == Dot" );
+
+        }
+
         ObjectValue value1 = m_expr->execute( runtime, isGlobal );
         if ( value1.isNull() )
         {
@@ -448,38 +459,8 @@ struct VarDeclaration: public Expression
     Expression*        m_initValue;
     //TODO: Value
     
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
-    {
-        if ( m_initValue != nullptr )
-        {
-            expr::ClassDefinition* classDef = nullptr;
+    ObjectValue execute( Runtime& runtime, bool isGlobal ) override;
 
-            if ( m_initValue->m_token.type == Identifier )
-            {
-                std::vector<std::string_view> namespaceSpec;
-                classDef = runtime.m_currentNamespace2->getClassDef( m_initValue->m_token.lexeme, namespaceSpec );
-            }
-            else if ( m_initValue->m_token.type == IdentifierWithScope )
-            {
-                std::string_view identifierName;
-                std::vector<std::string_view> namespaceSpec;
-                initIdentifierWithScope( m_initValue->m_token, identifierName, namespaceSpec );
-
-                classDef = runtime.m_currentNamespace2->getClassDef( identifierName, namespaceSpec );
-            }
-
-            if ( classDef != nullptr )
-            {
-//                ObjectValue value = classDef .....;
-//                return value;
-            }
-
-            ObjectValue value = m_initValue->execute(runtime, isGlobal);
-            return value;
-        }
-
-        return gNullObject;
-    }
 };
 
 struct Argument
@@ -490,7 +471,7 @@ struct Argument
 };
 
 
-inline void initIdentifierWithScope( const Token& token, std::string_view& identifierName, std::vector<std::string_view>& namespaceSpec )
+inline void parseIdentifierWithScope( const Token& token, std::string_view& identifierName, std::vector<std::string_view>& namespaceSpec )
 {
     LOG( "??: " << token.lexeme );
     bool scopeOp = false;
@@ -504,6 +485,7 @@ inline void initIdentifierWithScope( const Token& token, std::string_view& ident
             ptr++;
             if ( namespaceSpec.empty() )
             {
+                // empty namespace name
                 namespaceSpec.push_back( std::string_view{ ptr, 0 } );
             }
             scopeOp = true;
@@ -534,25 +516,24 @@ inline void initIdentifierWithScope( const Token& token, std::string_view& ident
     }
 }
 
-struct Identifier : public Expression
+struct IdentifierExpr : public Expression
 {
     std::string_view     m_name;
     std::string_view     m_type;
 
     std::vector<std::string_view>   m_namespaceSpec;
 
-    Identifier( const Token& token ) : Expression(token)
+    IdentifierExpr( const Token& token ) : Expression(token)
     {
         if ( token.type == IdentifierWithScope )
         {
-            initIdentifierWithScope( token, m_name, m_namespaceSpec );
+            parseIdentifierWithScope( token, m_name, m_namespaceSpec );
         }
         else
         {
             m_name = token.lexeme;
         }
     }
-
 
     virtual enum ExpressionType type() override { return et_identifier; }
     
@@ -622,6 +603,7 @@ struct Identifier : public Expression
         }
         else
         {
+            LOG( "unknown variable: " << m_token.lexeme )
             throw runtime_error( runtime, "unknown variable: '" + std::string(m_token.lexeme) + "'", m_token );
         }
 
@@ -690,16 +672,16 @@ struct FloatNumber : public Expression
     }
 };
 
-struct String : public Expression
+struct StringExpr : public Expression
 {
     std::string_view m_value;
 
-    String( const Token& lexeme ) : Expression(lexeme)
+    StringExpr( const Token& lexeme ) : Expression(lexeme)
     {
         m_value = m_token.lexeme;
     }
     
-    String( const Token& lexeme, const char* begin, const char* end ) : Expression(lexeme)
+    StringExpr( const Token& lexeme, const char* begin, const char* end ) : Expression(lexeme)
     {
         m_value = std::string_view( begin, end );
     }
@@ -814,7 +796,7 @@ struct FunctionCall: public Expression
     {
         if ( token.type == IdentifierWithScope )
         {
-            initIdentifierWithScope( token, m_functionName, m_namespaceSpec );
+            parseIdentifierWithScope( token, m_functionName, m_namespaceSpec );
         }
         else
         {

@@ -30,6 +30,16 @@ struct runtime_ex3 : std::runtime_error
 enum ObjectType : uint8_t { ot_null, ot_bool, ot_int, ot_double, ot_string, ot_class_ptr, ot_class_shared_ptr, ot_class_weak_ptr };
 
 struct ClassObject;
+struct Runtime;
+
+namespace expr
+{
+    struct ClassOrNamespace;
+}
+
+struct ObjectValue;
+
+ObjectValue createClassObject( Runtime&, bool isGlobal, expr::ClassOrNamespace& );
 
 //class SomeClass
 //{
@@ -76,6 +86,11 @@ struct ObjectValue
 
     ObjectValue& operator=( const ObjectValue& val )
     {
+        if ( this == &val )
+        {
+            return *this;
+        }
+
         m_type = val.m_type;
 
         switch( m_type )
@@ -90,8 +105,13 @@ struct ObjectValue
         return *this;
     }
 
-    ObjectValue& operator=( const ObjectValue&& val )
+    ObjectValue& operator=( ObjectValue&& val )
     {
+        if ( this == &val )
+        {
+            return *this;
+        }
+
         m_type = val.m_type;
 
         switch( m_type )
@@ -100,7 +120,8 @@ struct ObjectValue
             case ot_bool:   m_boolValue = val.m_boolValue; break;
             case ot_int:    m_intValue = val.m_intValue; break;
             case ot_double: m_doubleValue = val.m_doubleValue; break;
-            case ot_string: m_stringValue = val.m_stringValue; m_stringValue = nullptr; break;
+            case ot_string: m_stringValue = val.m_stringValue; val.m_stringValue = nullptr; break;
+            case ot_class_ptr:  m_classPtr = val.m_classPtr; val.m_classPtr = nullptr; break;
         }
         return *this;
     }
