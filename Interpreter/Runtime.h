@@ -2,6 +2,7 @@
 
 #include "TokenType.h"
 #include "TokenTypeStrings.h"
+#include "ObjectValue.h"
 #include "getLineAndPos.h"
 #include <map>
 #include <stack>
@@ -27,8 +28,6 @@ struct circular_reference_error: public std::runtime_error
     const Token& m_token2;
 };
 
-struct ObjectValue;
-
 struct Runtime
 {
     const std::string_view m_programText;
@@ -39,6 +38,7 @@ struct Runtime
 
     //???
     using LocalVarStack = std::vector< std::map<std::string_view,ObjectValue> >;
+    //using LocalVarStack = std::vector< std::map<std::string_view,void*> >;
     LocalVarStack       m_localVarStack;
 
     Runtime( const std::string_view& programText, expr::ClassOrNamespace& globaNamespace ) : m_programText(programText), m_topLevelNamespace(globaNamespace) {}
@@ -50,6 +50,20 @@ struct Runtime
     void getLineAndPos( const Token& token, int& line, int& pos, int& endPos ) const
     {
         ::getLineAndPos( m_programText, token, line, pos, endPos );
+    }
+
+    ObjectValue* getLocalVarValue( const std::string_view& varName )
+    {
+        for( auto localVarMapIt = m_localVarStack.rbegin();
+             localVarMapIt != m_localVarStack.rend();
+             localVarMapIt++ )
+        {
+            if ( auto it = localVarMapIt->find( varName ); it != localVarMapIt->end() )
+            {
+                return &it->second;
+            }
+        }
+        return nullptr;
     }
 
 private:

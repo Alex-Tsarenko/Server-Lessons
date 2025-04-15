@@ -11,7 +11,8 @@ void Runtime::initGlobalVariablesR( expr::ClassOrNamespace& namespaceRef )
     {
         namespaceRef.m_initializationVariableMap[variableName] = true;
         {
-            auto value = var->execute(*this,true);
+            ObjectValue value;
+            var->execute( value, *this,true);
             namespaceRef.m_variableValueMap.emplace( var->m_identifierName, value );
         }
         namespaceRef.m_initializationVariableMap[variableName] = false;
@@ -54,5 +55,6 @@ void Runtime::run( const std::vector<expr::Expression*>& code, const std::string
 
     auto mainCall = expr::FunctionCall( mainRef->second->m_token );
     mainCall.m_functionName = "main";
-    mainCall.execute( *this, false );
+    ObjectValue retValue;
+    mainCall.execute( retValue, *this, false );
 }

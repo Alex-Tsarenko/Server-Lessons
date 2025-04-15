@@ -61,7 +61,7 @@ struct ObjectValue
 
         std::string*    m_stringValue;
 
-        ClassObject*                 m_classPtr;
+        ClassObject*                  m_classObjPtr;
         std::shared_ptr<ClassObject>* m_classSharedPtr;
         std::weak_ptr<ClassObject>*   m_clasWeakPtr;
     };
@@ -84,7 +84,7 @@ struct ObjectValue
         *this = std::move(val);
     }
 
-    ObjectValue& operator=( const ObjectValue& val )
+    ObjectValue& operator=( ObjectValue& val )
     {
         if ( this == &val )
         {
@@ -100,7 +100,7 @@ struct ObjectValue
             case ot_int:    m_intValue = val.m_intValue; break;
             case ot_double: m_doubleValue = val.m_doubleValue; break;
             case ot_string: m_stringValue = new std::string{ *val.m_stringValue}; break;
-            case ot_class_ptr:  /*TODO:*/ break;
+            case ot_class_ptr: m_classObjPtr = val.m_classObjPtr; val.m_classObjPtr = nullptr; break;
         }
         return *this;
     }
@@ -121,7 +121,7 @@ struct ObjectValue
             case ot_int:    m_intValue = val.m_intValue; break;
             case ot_double: m_doubleValue = val.m_doubleValue; break;
             case ot_string: m_stringValue = val.m_stringValue; val.m_stringValue = nullptr; break;
-            case ot_class_ptr:  m_classPtr = val.m_classPtr; val.m_classPtr = nullptr; break;
+            case ot_class_ptr:  m_classObjPtr = val.m_classObjPtr; val.m_classObjPtr = nullptr; break;
         }
         return *this;
     }
@@ -239,6 +239,5 @@ struct ObjectValue
 };
 
 
-#define gNullObject ObjectValue{}
 
 

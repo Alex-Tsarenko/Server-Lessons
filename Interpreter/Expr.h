@@ -80,6 +80,7 @@ inline const Token& nilToken{ NilToken, "NilToken" };
 enum ExpressionType
 {
     et_unary,
+    et_dot,
     et_binary,
     et_identifier,
     et_int,
@@ -89,6 +90,8 @@ enum ExpressionType
     et_func_call,
     et_namespace_op,
     et_return,
+
+    et_var_decl,
 
     et_undefined
 };
@@ -118,7 +121,7 @@ struct Expression
         LOG("<Expression evaluate: NIL>");
     }
 
-    virtual ObjectValue execute( Runtime&, bool isGlobal ) = 0;
+    virtual ObjectValue* execute( ObjectValue& outValue, Runtime&, bool isGlobal ) = 0;
 };
 
 }
@@ -126,11 +129,12 @@ struct Expression
 namespace expr
 {
 
+// Dijkstra
 struct HelpExpression: Expression
 {
     HelpExpression( const Token& token ) : Expression(token) {};
 
-    ObjectValue execute( Runtime&, bool isGlobal ) override { return gNullObject; }
+    ObjectValue* execute( ObjectValue& outValue, Runtime&, bool isGlobal ) override { return nullptr; }
 };
 
 inline int gEvaluateOffset = 0;
@@ -197,19 +201,19 @@ struct ExpressionList: public Expression
 {
     std::list<Expression*>  m_list;
     
-    virtual ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    virtual ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
-        ObjectValue result;
+        ObjectValue& result = outValue;
         for( auto& statement: m_list )
         {
             LOG("statement->m_token: " << statement->m_token.lexeme )
-            result = statement->execute( runtime, isGlobal );
+            statement->execute( result, runtime, isGlobal );
             if ( result.m_isReturned )
             {
-                return result;
+                return;
             }
 
-            if ( statement->m_token.type == Identifier )
+            if ( statement->type() == et_var_decl )
             {
                 auto pair = runtime.m_localVarStack.back().emplace( statement->m_token.lexeme, result );
                 if ( not pair.second )
@@ -218,7 +222,7 @@ struct ExpressionList: public Expression
                 }
             }
         }
-        return result;
+        return;
     }
 };
 
@@ -232,22 +236,22 @@ struct PrintFuncCall: public Expression
     }
     std::vector<Expression*>  m_list;
     
-    virtual ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    virtual ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
         for( auto* expr: m_list )
         {
-            LOG("PrintFunc item: " << (void*)expr )
-            ObjectValue value = expr->execute( runtime, isGlobal );
-            LOG("PrintFunc item: " << value.pstring() )
+            //LOG("PrintFunc item: " << (void*)expr )
+            expr->execute( outValue, runtime, isGlobal );
+            //LOG("PrintFunc item: " << outValue.pstring() )
 
-            value.toStream( std::cout );
+            outValue.toStream( std::cout );
         }
        
         if ( m_withNewLine )
         {
             std::cout << std::endl;
         }
-        return gNullObject;
+        return;
     }
 };
 
@@ -275,51 +279,51 @@ struct UnaryExpression: public Expression
         LOGX( ")");
     }
     
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
-        ObjectValue value = m_expr->execute( runtime, isGlobal );
+        m_expr->execute( outValue, runtime, isGlobal );
 
         switch (m_op) {
             case plus:
                 break;
             case minus:
-                if ( value.m_type == ot_int )
+                if ( outValue.m_type == ot_int )
                 {
-                    value.m_intValue = -value.m_intValue;
+                    outValue.m_intValue = -outValue.m_intValue;
                     break;
                 }
-                else if ( value.m_type == ot_double )
+                else if ( outValue.m_type == ot_double )
                 {
-                    value.m_doubleValue = -value.m_doubleValue;
+                    outValue.m_doubleValue = -outValue.m_doubleValue;
                     break;
                 }
-                else if ( value.m_type == ot_bool )
+                else if ( outValue.m_type == ot_bool )
                 {
                     RUNTIME_EX3( "Cannot apply '-' to bool value: ", m_token );
                 }
-                else if ( value.m_type == ot_string )
+                else if ( outValue.m_type == ot_string )
                 {
                     RUNTIME_EX3( "Cannot apply '-' to string value: ", m_token );
                 }
             case negotiaton:
-                if ( value.m_type == ot_bool )
+                if ( outValue.m_type == ot_bool )
                 {
-                    value.m_boolValue = -value.m_boolValue;
+                    outValue.m_boolValue = -outValue.m_boolValue;
                     break;
                 }
-                else if ( value.m_type == ot_int )
+                else if ( outValue.m_type == ot_int )
                 {
                     RUNTIME_EX3( "Cannot apply '!' to int value: ", m_token );
                 }
-                else if ( value.m_type == ot_double )
+                else if ( outValue.m_type == ot_double )
                 {
                     RUNTIME_EX3( "Cannot apply '!' to double value: ", m_token );
                 }
-                else if ( value.m_type == ot_string )
+                else if ( outValue.m_type == ot_string )
                 {
                     RUNTIME_EX3( "Cannot apply '-' to string value: ", m_token );
                 }
-                else if ( value.m_type == ot_null )
+                else if ( outValue.m_type == ot_null )
                 {
                     RUNTIME_EX3( "Cannot apply '-' to null: ", m_token );
                 }
@@ -331,7 +335,7 @@ struct UnaryExpression: public Expression
             default:
                 break;
         }
-        return value;
+        return nullptr;
     }
 };
 
@@ -362,18 +366,10 @@ struct BinaryOpExpression: public Expression
         LOGX( ")");
     }
 
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
-        if ( m_token.type == Dot )
-        {
-            LOG( "m_token.type == Dot" );
-            ObjectValue value = m_expr2->execute( runtime, isGlobal );
-            
-            LOG( "m_token.type == Dot" );
-
-        }
-
-        ObjectValue value1 = m_expr->execute( runtime, isGlobal );
+        ObjectValue value1;
+        m_expr->execute( value1, runtime, isGlobal );
         if ( value1.isNull() )
         {
             if ( m_expr->type() == et_identifier )
@@ -383,7 +379,8 @@ struct BinaryOpExpression: public Expression
             RUNTIME_EX3( "unexpected null value: ", m_expr->m_token )
         }
 
-        ObjectValue value2 = m_expr2->execute( runtime, isGlobal );
+        ObjectValue value2;
+        m_expr2->execute( value2, runtime, isGlobal );
         if ( value2.isNull() )
         {
             if ( m_expr2->type() == et_identifier )
@@ -396,10 +393,9 @@ struct BinaryOpExpression: public Expression
         if ( value1.m_type == ot_int && value2.m_type == ot_int )
         {
 #define RETURN_INT_VALUE_OF(sign) \
-    ObjectValue value;\
-    value.m_type = ot_int;\
-    value.m_intValue = value1.m_intValue sign value2.m_intValue;\
-    return value;
+    outValue.m_type = ot_int;\
+    outValue.m_intValue = value1.m_intValue sign value2.m_intValue;\
+    return nullptr;
 
             if ( m_token.type == Plus )
             {
@@ -421,10 +417,9 @@ struct BinaryOpExpression: public Expression
         if ( (value1.m_type == ot_int || value1.m_type == ot_double) || (value2.m_type == ot_int || value2.m_type == ot_double) )
         {
 #define RETURN_DOUBLE_VALUE_OF(sign) \
-    ObjectValue value;\
-    value.m_type = ot_double;\
-    value.m_doubleValue = value1.doubleValue() sign value2.doubleValue();\
-    return value;
+    outValue.m_type = ot_double;\
+    outValue.m_doubleValue = value1.doubleValue() sign value2.doubleValue();\
+    return nullptr;
 
             if ( m_token.type == Plus )
             {
@@ -447,19 +442,32 @@ struct BinaryOpExpression: public Expression
     }
 };
 
+struct DotExpr: public BinaryOpExpression
+{
+    DotExpr( const Token& token ) : BinaryOpExpression(token)
+    {
+    }
+
+    virtual enum ExpressionType type() override { return et_dot; }
+
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override;
+};
+
 struct VarDeclaration: public Expression
 {
-    VarDeclaration( const Token& token, const std::string_view& varType ) : Expression(token), m_identifierName(token.lexeme), m_type(varType) {}
+    VarDeclaration( const Token& token, const Token* varType ) : Expression(token), m_identifierName(token.lexeme), m_type(varType) {}
 
     bool               m_isPrivate = false;
     bool               m_isStatic = false;
 
     std::string_view   m_identifierName;
-    std::string_view   m_type;
+    const Token*       m_type;
     Expression*        m_initValue;
     //TODO: Value
     
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override;
+    virtual enum ExpressionType type() override { return et_var_decl; }
+
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override;
 
 };
 
@@ -547,7 +555,7 @@ struct IdentifierExpr : public Expression
         LOGX( "'" << m_token.lexeme );
     }
 
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
         LOG( "execute var: " << m_name )
 
@@ -558,11 +566,13 @@ struct IdentifierExpr : public Expression
             {
                 if ( auto it = runtime.m_currentNamespace2->m_variableValueMap.find(m_name); it != runtime.m_currentNamespace2->m_variableValueMap.end() )
                 {
-                    return it->second;
+                    outValue = it->second;
+                    return &it->second;
                 }
             }
             else
             {
+                // Iterate throw namespace stack
                 auto* oldCurrentNamespace = runtime.m_currentNamespace2;
                 for(;;)
                 {
@@ -576,7 +586,8 @@ struct IdentifierExpr : public Expression
                     if ( auto it = runtime.m_currentNamespace2->m_variableValueMap.find(m_name); it != runtime.m_currentNamespace2->m_variableValueMap.end() )
                     {
                         runtime.m_currentNamespace2 = oldCurrentNamespace;
-                        return it->second;
+                        outValue = it->second;
+                        return &it->second;
                     }
                 }
                 runtime.m_currentNamespace2 = oldCurrentNamespace;
@@ -586,28 +597,60 @@ struct IdentifierExpr : public Expression
         }
         else
         {
-            for( auto localVarMapIt = runtime.m_localVarStack.rbegin();
-                 localVarMapIt != runtime.m_localVarStack.rend();
-                 localVarMapIt++ )
+            if ( auto* localVarValue = runtime.getLocalVarValue( m_name ); localVarValue != nullptr )
             {
-                if ( auto it = localVarMapIt->find(m_name); it != localVarMapIt->end() )
+                outValue = *localVarValue;
+                return localVarValue;
+            }
+
+//            for( auto localVarMapIt = runtime.m_localVarStack.rbegin();
+//                 localVarMapIt != runtime.m_localVarStack.rend();
+//                 localVarMapIt++ )
+//            {
+//                if ( auto it = localVarMapIt->find(m_name); it != localVarMapIt->end() )
+//                {
+//                    outValue = it->second;
+//                    return &it->second;
+//                }
+//            }
+
+            // Iterate throw namespace stack
+            auto* oldCurrentNamespace = runtime.m_currentNamespace2;
+            for(;;)
+            {
+                LOG( "-- runtime.m_currentNamespace : " << runtime.m_currentNamespace2->m_name )
+                if ( runtime.m_currentNamespace2 = runtime.m_currentNamespace2->m_parent; runtime.m_currentNamespace2 == nullptr )
                 {
-                    return it->second;
+                    LOG( "-- break: runtime.m_currentNamespace"  )
+                    break;
+                }
+                LOG( "-- after runtime.m_currentNamespace : " << runtime.m_currentNamespace2->m_name )
+                if ( auto it = runtime.m_currentNamespace2->m_variableValueMap.find(m_name); it != runtime.m_currentNamespace2->m_variableValueMap.end() )
+                {
+                    runtime.m_currentNamespace2 = oldCurrentNamespace;
+                    outValue = it->second;
+                    return &it->second;
                 }
             }
+            runtime.m_currentNamespace2 = oldCurrentNamespace;
+
         }
 
         if ( auto* value = runtime.m_currentNamespace2->getVarValue(m_name, m_namespaceSpec); value != nullptr )
         {
-            return *value;
-        }
-        else
-        {
-            LOG( "unknown variable: " << m_token.lexeme )
-            throw runtime_error( runtime, "unknown variable: '" + std::string(m_token.lexeme) + "'", m_token );
+            outValue = *value;
+            return value;
         }
 
-        return gNullObject;
+        if ( auto* classDef = runtime.m_currentNamespace2->getClassDef(m_name, m_namespaceSpec); classDef != nullptr )
+        {
+            outValue = createClassObject( runtime, isGlobal, *classDef );
+            return &outValue;
+        }
+
+        LOG( "unknown variable: " << m_token.lexeme )
+        throw runtime_error( runtime, "unknown variable: '" + std::string(m_token.lexeme) + "'", m_token );
+        return nullptr;
     }
 
 };
@@ -633,12 +676,11 @@ struct IntNumber : public Expression
         LOGX( m_value );
     }
     
-    ObjectValue execute( Runtime&, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime&, bool isGlobal ) override
     {
-        ObjectValue value;
-        value.m_type = ot_int;
-        value.m_intValue = m_value;
-        return value;
+        outValue.m_type = ot_int;
+        outValue.m_intValue = m_value;
+        return nullptr;
     }
 };
 
@@ -663,12 +705,11 @@ struct FloatNumber : public Expression
         LOGX( m_value );
     }
     
-    ObjectValue execute( Runtime&, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime&, bool isGlobal ) override
     {
-        ObjectValue value;
-        value.m_type = ot_double;
-        value.m_doubleValue = m_value;
-        return value;
+        outValue.m_type = ot_double;
+        outValue.m_doubleValue = m_value;
+        return nullptr;
     }
 };
 
@@ -698,12 +739,11 @@ struct StringExpr : public Expression
         LOGX( m_value );
     }
     
-    ObjectValue execute( Runtime&, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime&, bool isGlobal ) override
     {
-        ObjectValue value;
-        value.m_type = ot_string;
-        value.m_stringValue = new std::string{ m_value };
-        return value;
+        outValue.m_type = ot_string;
+        outValue.m_stringValue = new std::string{ m_value };
+        return nullptr;
     }
 
 };
@@ -717,13 +757,13 @@ struct FuncDefinition : public Expression
     ExpressionList          m_body;
     ClassOrNamespace*       m_whereFuctionWasDefined = nullptr;
 
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
         auto result = runtime.m_topLevelNamespace.m_functionMap.emplace( m_name, this);
         if ( result.second )
         {
             // we added function
-            return gNullObject;
+            return nullptr;
         }
 
         // Insertion failed, meaning m_functionName already exists
@@ -764,23 +804,34 @@ struct ClassDefinition : public Expression
     {
     }
 
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
     }
 };
 
 struct AssignmentStatement: public Expression
 {
-    std::string_view            m_varName;
-    expr::Expression*           m_expr = nullptr;
-    
-    AssignmentStatement( const Token& token ) : Expression(token), m_varName(token.lexeme) {}
-    
+    expr::Expression*           m_left = nullptr;
+    expr::Expression*           m_right = nullptr;
+
+    AssignmentStatement( const Token& token, expr::Expression* left, expr::Expression* right ) 
+    : Expression(token), m_left(left), m_right(right)
+    {
+    }
+
     virtual enum ExpressionType type() override { return et_assignment; }
     
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
-        assert("todo");
+        auto* left = m_left->execute( outValue, runtime, isGlobal );
+        if ( left == nullptr )
+        {
+            throw runtime_ex3( "expression is not assignable: ", m_left->m_token);
+        }
+        auto* retValue = m_right->execute( outValue, runtime, isGlobal );
+        //TODO:
+        *left = outValue;
+        return retValue;
     }
 };
 
@@ -826,7 +877,7 @@ struct FunctionCall: public Expression
         LOGX( ")");
     }
     
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
         FuncDefinition* funcDef = nullptr;
 
@@ -841,14 +892,14 @@ struct FunctionCall: public Expression
         auto oldCurrentNamespace = runtime.m_currentNamespace2;
         runtime.m_currentNamespace2 = funcDef->m_whereFuctionWasDefined;
         //{
-            auto result = FunctionCall::doExecute( runtime, funcDef, isGlobal );
+            auto result = FunctionCall::doExecute( outValue, runtime, funcDef, isGlobal );
         //}
         runtime.m_currentNamespace2 = oldCurrentNamespace;
 
         return result;
     }
 
-    ObjectValue doExecute( Runtime& runtime, FuncDefinition* fDefinition, bool isGlobal )
+    ObjectValue* doExecute( ObjectValue& outValue, Runtime& runtime, FuncDefinition* fDefinition, bool isGlobal )
     {
         runtime.m_localVarStack.push_back({});
 
@@ -857,19 +908,20 @@ struct FunctionCall: public Expression
         {
             if ( paramIt != m_parameters.end() )
             {
-                ObjectValue paramValue = (*paramIt)->execute( runtime, isGlobal );
+                ObjectValue paramValue;
+                (*paramIt)->execute( paramValue, runtime, isGlobal );
                 LOG("execute function: " << m_functionName << ": arg: " << arg.m_name << " = " << paramValue.pstring() )
-                auto result = runtime.m_localVarStack.back().emplace( arg.m_name, paramValue );
+                runtime.m_localVarStack.back().emplace( arg.m_name, paramValue );
                 paramIt++;
             }
             else
             {
-                auto result = runtime.m_localVarStack.back().emplace( arg.m_name, ObjectValue{} );
+                runtime.m_localVarStack.back().emplace( arg.m_name, ObjectValue{} );
             }
         }
 
-        auto result = fDefinition->m_body.execute( runtime, isGlobal );
-        result.m_isReturned = 0;
+        auto result = fDefinition->m_body.execute( outValue, runtime, isGlobal );
+        outValue.m_isReturned = 0;
 
         runtime.m_localVarStack.pop_back();
         return result;
@@ -904,15 +956,15 @@ struct Return : public Expression
     
     Return( Expression* returnValue ) : m_returnValue(returnValue) {}
     
-    ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
         if ( m_returnValue != nullptr )
         {
-            auto returnValue = m_returnValue->execute( runtime, isGlobal );
-            returnValue.m_isReturned = 0xff;
+            auto returnValue = m_returnValue->execute( outValue, runtime, isGlobal );
+            returnValue->m_isReturned = 0xff;
             return returnValue;
         }
-        return gNullObject;
+        return nullptr;
     }
 };
 

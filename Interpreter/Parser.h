@@ -76,12 +76,14 @@ public:
 
         try
         {
-            return parseExpr( EndOfFile );
+            auto* ex = parseExpr(  );
+            assert( tokenIs(EndOfFile) );
+            return ex;;
         }
         catch( syntax_error& error )
         {
-            std::cerr << "!!! Syntax error: " << error.what() << std::endl;
-            std::cerr << getLine( exprString, error.m_line+1 ) << std::endl;
+            std::cerr << getLine( exprString, error.m_line ) << std::endl;
+            std::cerr << "!!! Syntax error (" << error.m_line << "): " << error.what() << std::endl;
             for( int i=0; i<error.m_position-1; i++ )
             {
                 std::cerr << ' ';
@@ -151,8 +153,9 @@ public:
         }
         catch( syntax_error& error )
         {
-            std::cerr << "!!! Syntax error: " << error.what() << std::endl;
-            std::cerr << getLine( m_programText.data(), error.m_line+1 ) << std::endl;
+            std::cerr << getLine( m_programText.data(), error.m_line ) << std::endl;
+            std::cerr << "!!! Syntax error (" << error.m_line << "): " << error.what() << std::endl;
+
             for( int i=0; i<error.m_position-1; i++ )
             {
                 std::cerr << ' ';
@@ -162,6 +165,7 @@ public:
                 std::cerr << '^';
             }
             std::cerr << std::endl;
+            exit(0);
         }
     }
 
@@ -303,57 +307,43 @@ protected:
             }
             case Identifier:
             case IdentifierWithScope:
-                if ( _nextTokenIs(LeftParen) )
+            {
+                auto* ex = parseExpr();
+                if ( tokenIs(Semicolon) )
                 {
-                    // f(...) function call
-                    return parseExpr(Semicolon);
+                    _shiftToNextToken();
+                    return ex;
                 }
-//                else if ( _nextTokenIs(ScopeResolutionOp) )
-//                {
-//                    // namespace operation
-//                    std::vector<Token*>   namespaceSpec;
-//
-//                    // N2::N1::var | N2::var
-//                    _shiftToNextToken(); // skip N2
-//                againScopeResolutionOp:
-//                    _shiftToNextToken(); // skip ::
-//                    
-//                    if ( ! tokenIs(Identifier) )
-//                    {
-//                        throw syntax_error( this, std::string("expected identifier: "), *m_tokenIt );
-//                    }
-//
-//                    if ( _nextTokenIs(ScopeResolutionOp) )
-//                    {
-//                        auto token = *m_tokenIt;
-//                        namespaceSpec.push_back( &token );
-//                        _shiftToNextToken(); // skip N1
-//                        goto againScopeResolutionOp;
-//                    }
-//                    else
-//                    {
-//                        // func or variable
-//                        if ( _nextTokenIs(LeftParen) )
-//                        {
-//                            // function call
-//                            auto* funcDef = parseExpr(Semicolon);
-//                            return funcDef;
-//                        }
-//
-//                    }
-//                    //TODO!!!
-//                    return parseExpr(Semicolon);
-//                }
-                else
+                else if ( tokenIs(Assignment) )
                 {
-                    // assignment
-                    // x = ...;
-                    auto* assignment = new expr::AssignmentStatement( *m_tokenIt );
-                    _shiftToNextTokenIf( Assignment );
-                    assignment->m_expr = parseExpr( Semicolon );
+                    _shiftToNextToken();
+                    auto* ex2 = parseExpr();
+                    if ( tokenIs(Semicolon) )
+                    {
+                        _shiftToNextToken();
+                    }
+                    auto* assignment = new expr::AssignmentStatement( *m_tokenIt, ex, ex2 );
                     return assignment;
                 }
+                throw syntax_error( this, std::string("unexpected ")+gTokenTypeStrings[RightBrace], *m_tokenIt );
 
+
+//                if ( _nextTokenIs(LeftParen) )
+//                {
+//                    // f(...) function call
+//                    return parseExpr(Semicolon);
+//                }
+//                else
+//                {
+//                    // assignment
+//                    // x = ...;
+//                    auto* assignment = new expr::AssignmentStatement( *m_tokenIt );
+//                    _shiftToNextTokenIf( Assignment );
+//                    _shiftToNextToken();
+//                    assignment->m_expr = parseExpr( Semicolon );
+//                    return assignment;
+//                }
+            }
             case RightBrace:
                 if ( m_blockLevel == 0 )
                 {
@@ -434,10 +424,10 @@ protected:
     }
 
     
-    expr::Expression* parseExpr( TokenType endToken )
+    expr::Expression* parseExpr()
     {
         // 1-st pass of shunting-yard algorithm
-        doParseExpr( endToken );
+        doParseExpr();
 
         while( !m_operationStack.empty() )
         {
@@ -542,7 +532,7 @@ protected:
 
     }
 
-    void doParseExpr( TokenType endTokenType )
+    void doParseExpr()
     {
         initParseExprTables();
 
@@ -672,7 +662,7 @@ protected:
                 case Semicolon:
                 {
                     //TODO
-                    break;
+                    return;
                 }
                 case LeftSqBracket:
                 {
@@ -718,7 +708,14 @@ protected:
                     else
                     {
                         LOG( "@@@ binaryOp to stack: " << m_tokenIt->lexeme )
-                        m_operationStack.push_back( new expr::BinaryOpExpression(*m_tokenIt) );
+                        if ( m_tokenIt->type == Dot )
+                        {
+                            m_operationStack.push_back( new expr::DotExpr(*m_tokenIt) );
+                        }
+                        else
+                        {
+                            m_operationStack.push_back( new expr::BinaryOpExpression(*m_tokenIt) );
+                        }
                     }
                 }
             }
@@ -767,6 +764,7 @@ protected:
                 return expr;
             }
             case expr::et_binary:
+            case expr::et_dot:
             {
                 ((expr::BinaryOpExpression*)expr)->m_expr = constructExpr();
                 
@@ -853,11 +851,12 @@ protected:
         //
         if ( !isClassMember )
         {
+            // skip 'var' keyword
             _shiftToNextTokenIf( Identifier );
         }
         
-        const Token& varName = *m_tokenIt;
-        std::string_view varType;
+        const Token& varName   = *m_tokenIt;
+        const Token* varType   = nullptr;
         expr::Expression* expr = nullptr;
 
         _shiftToNextToken();
@@ -865,12 +864,12 @@ protected:
         if ( tokenIs( Colon ) )
         {
             _shiftToNextToken();
-            if ( ! tokenIs(Identifier) && ! tokenIs(Int) && ! tokenIs(Float) && ! tokenIs(String) )
+            if ( ! tokenIs(Identifier) && ! tokenIs(IdentifierWithScope) )
             {
                 throw syntax_error( this, std::string("expected type: "), *m_tokenIt );
             }
             LOG( "After colon (var type): " << m_tokenIt->lexeme );
-            varType = m_tokenIt->lexeme;
+            varType = &(*m_tokenIt);
 
             _shiftToNextToken();
         }
@@ -879,7 +878,7 @@ protected:
         {
             // skip assignment
             _shiftToNextToken();
-            expr = parseExpr( Semicolon );
+            expr = parseExpr();
         }
 
         if ( tokenIs( Semicolon ) )
@@ -982,24 +981,10 @@ protected:
             {
                 _shiftToNextTokenIf(Identifier);
 
-//                if ( _nextTokenIs(LeftParen) )
-//                {
-//                    // parse constructor
-//                    if ( ! tokenIs(Identifier) || m_tokenIt->lexeme != "constructor" )
-//                    {
-//                        throw syntax_error( this, std::string("inside class unexpected : ") + std::string{m_tokenIt->lexeme}, *m_tokenIt );
-//                    }
-//                    auto* constructorDef = parseFuncDef< expr::ConstructorInfo >();
-//                    constructorDef->m_isPrivate = isPrivate;
-//                    thisClassOrNamespace->m_constuctors.push_back( constructorDef );
-//                }
-//                else
-//                {
-                    // parse variable
-                    auto* varDef = parseVar( true );
-                    varDef->m_isPrivate = isPrivate;
-                    thisClassOrNamespace->m_variableMap[varDef->m_identifierName] = varDef;
-//                }
+                // parse variable
+                auto* varDef = parseVar( true );
+                varDef->m_isPrivate = isPrivate;
+                thisClassOrNamespace->m_variableMap[varDef->m_identifierName] = varDef;
             }
             else if ( tokenIs(Func) )
             {
@@ -1035,7 +1020,11 @@ protected:
     
     expr::Expression* parseReturn()
     {
-        auto* returnValue = parseExpr( Semicolon );
+        auto* returnValue = parseExpr();
+        if ( tokenIs( Semicolon ) )
+        {
+            _shiftToNextToken();
+        }
         return new expr::Return{ returnValue };// expr;
     }
     
@@ -1193,7 +1182,8 @@ protected:
                     while( ! tokenIs(RightParen) )
                     {
                         _shiftToNextToken();
-                        auto* expr = parseExpr( RightParen );
+                        auto* expr = parseExpr();
+                        assert ( tokenIs( RightParen ) );
                         tokenBack();
                         func->m_baseClassInitList.push_back( expr );
                     }

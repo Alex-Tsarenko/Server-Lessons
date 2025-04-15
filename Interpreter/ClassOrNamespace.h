@@ -52,9 +52,9 @@ public:
 
 public:
     
-    virtual ObjectValue execute( Runtime& runtime, bool isGlobal ) override
+    virtual ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
-        return gNullObject;
+        return nullptr;
     }
 
     ClassOrNamespace* getTopNamespace()

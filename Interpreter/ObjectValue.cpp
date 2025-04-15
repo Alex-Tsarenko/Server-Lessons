@@ -2,6 +2,9 @@
 #include "ClassObject.h"
 #include "Expr.h"
 
+ObjectValue gNullObject;
+
+
 ObjectValue::~ObjectValue()
 {
     using namespace std;
@@ -12,7 +15,7 @@ ObjectValue::~ObjectValue()
     }
     else if ( m_type == ot_class_ptr )
     {
-        delete m_classPtr;
+        delete m_classObjPtr;
     }
     else if ( m_type == ot_class_shared_ptr )
     {
@@ -28,15 +31,13 @@ ObjectValue createClassObject( Runtime& runtime, bool isGlobal, expr::ClassOrNam
 {
     ObjectValue value;
     value.m_type = ot_class_ptr;
-    value.m_classPtr = new ClassObject{ &classDef };
+    value.m_classObjPtr = new ClassObject{ &classDef };
 
     for( auto [name,varDecl] : classDef.m_variableMap )
     {
-        ObjectValue varValue = varDecl->execute( runtime, isGlobal );
-        LOG( "varValue.m_classPtr-> " << name )
-        value.m_classPtr->m_members.emplace( name, varValue );
-        LOG( "2 varValue.m_classPtr-> " << name )
-
+        ObjectValue varValue;
+        varDecl->execute( varValue, runtime, isGlobal );
+        value.m_classObjPtr->m_members.emplace( name, varValue );
     }
 
     return value;

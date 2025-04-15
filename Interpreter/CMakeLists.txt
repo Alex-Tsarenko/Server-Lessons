@@ -31,5 +31,8 @@ add_executable(Interpreter
   TokenTypeStrings.h
 )
 
+#-Werror=return-type
+add_compile_options(-Werror=return-type)
+
 install(TARGETS Interpreter
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})

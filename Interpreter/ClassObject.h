@@ -13,10 +13,14 @@ struct ClassObject
 
     ClassObject( expr::ClassOrNamespace* definition ) : m_definition(definition)
     {
-        for( auto& [name,varDecl] : definition->m_variableMap )
-        {
-            m_members[name] = ObjectValue();
-        }
+//        for( auto& [name,varDecl] : definition->m_variableMap )
+//        {
+//            m_members[name] = ObjectValue();
+//            if ( varDecl->m_initValue != nullptr )
+//            {
+//                //varDecl->m_initValue->execute( ru, <#bool isGlobal#>)
+//            }
+//        }
     }
 
     ~ClassObject() { m_members.clear(); }

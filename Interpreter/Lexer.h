@@ -230,9 +230,9 @@ public:
             {"func",Func},
             {"private",Private},
             {"print",Print},
-            {"int",Int},
-            {"float",Float},
-            {"string",String},
+//            {"int",Int},
+//            {"float",Float},
+//            {"string",String},
             {"string-literal",StringLiteral},
         };
         
