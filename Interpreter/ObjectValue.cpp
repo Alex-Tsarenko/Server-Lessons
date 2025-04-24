@@ -19,26 +19,25 @@ ObjectValue::~ObjectValue()
     }
     else if ( m_type == ot_class_shared_ptr )
     {
-        delete m_classSharedPtr;
+        m_classSharedPtr.~shared_ptr<ClassObject>();
     }
     else if ( m_type == ot_class_weak_ptr )
     {
-        delete m_clasWeakPtr;
+        m_classWeakPtr.~weak_ptr<ClassObject>();
     }
 }
 
-ObjectValue createClassObject( Runtime& runtime, bool isGlobal, expr::ClassOrNamespace& classDef )
+void createClassObject( ObjectValue& outValue, Runtime& runtime, bool isGlobal, expr::ClassOrNamespace& classDef )
 {
-    ObjectValue value;
-    value.m_type = ot_class_ptr;
-    value.m_classObjPtr = new ClassObject{ &classDef };
+    assert( outValue.m_type == ot_null );
+
+    outValue.m_type = ot_class_shared_ptr;
+    new (&outValue.m_classSharedPtr) std::shared_ptr<ClassObject>( std::make_shared<ClassObject>( &classDef ));
 
     for( auto [name,varDecl] : classDef.m_variableMap )
     {
         ObjectValue varValue;
         varDecl->execute( varValue, runtime, isGlobal );
-        value.m_classObjPtr->m_members.emplace( name, varValue );
+        outValue.m_classSharedPtr->m_members.emplace( name, varValue );
     }
-
-    return value;
 }

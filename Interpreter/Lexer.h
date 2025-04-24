@@ -223,6 +223,7 @@ public:
             {"class",ClassKw},
             {"private",Private},
             {"var",Var},
+            {"ref",Ref},
             {"if",If},
             {"for",For},
             {"return",Return},

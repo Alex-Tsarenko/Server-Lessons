@@ -39,7 +39,7 @@ namespace expr
 
 struct ObjectValue;
 
-ObjectValue createClassObject( Runtime&, bool isGlobal, expr::ClassOrNamespace& );
+void createClassObject( ObjectValue& outValue, Runtime&, bool isGlobal, expr::ClassOrNamespace& );
 
 //class SomeClass
 //{
@@ -61,9 +61,11 @@ struct ObjectValue
 
         std::string*    m_stringValue;
 
+        // TODO: for C++ support
         ClassObject*                  m_classObjPtr;
-        std::shared_ptr<ClassObject>* m_classSharedPtr;
-        std::weak_ptr<ClassObject>*   m_clasWeakPtr;
+        
+        std::shared_ptr<ClassObject>  m_classSharedPtr;
+        std::weak_ptr<ClassObject>    m_classWeakPtr;
     };
     
     ObjectValue()
@@ -100,7 +102,8 @@ struct ObjectValue
             case ot_int:    m_intValue = val.m_intValue; break;
             case ot_double: m_doubleValue = val.m_doubleValue; break;
             case ot_string: m_stringValue = new std::string{ *val.m_stringValue}; break;
-            case ot_class_ptr: m_classObjPtr = val.m_classObjPtr; val.m_classObjPtr = nullptr; break;
+            case ot_class_shared_ptr: m_classSharedPtr = val.m_classSharedPtr; break; //throw std::runtime_error( "unsupported: = " );
+            case ot_class_weak_ptr: m_classWeakPtr = val.m_classWeakPtr; break;
         }
         return *this;
     }
@@ -122,6 +125,11 @@ struct ObjectValue
             case ot_double: m_doubleValue = val.m_doubleValue; break;
             case ot_string: m_stringValue = val.m_stringValue; val.m_stringValue = nullptr; break;
             case ot_class_ptr:  m_classObjPtr = val.m_classObjPtr; val.m_classObjPtr = nullptr; break;
+            case ot_class_shared_ptr:  
+                m_classSharedPtr = std::move(val.m_classSharedPtr);
+                val.m_classSharedPtr.reset();
+                break;
+            case ot_class_weak_ptr:  m_classWeakPtr = std::move(val.m_classWeakPtr); val.m_classWeakPtr.reset(); break;
         }
         return *this;
     }

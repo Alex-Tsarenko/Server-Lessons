@@ -58,7 +58,7 @@ ObjectValue* VarDeclaration::execute( ObjectValue& outValue, Runtime& runtime, b
         classDef = runtime.m_currentNamespace2->getClassDef( funcCall->m_functionName, funcCall->m_namespaceSpec );
         if ( classDef != nullptr )
         {
-            outValue = ::createClassObject( runtime, isGlobal, *classDef );
+            ::createClassObject( outValue, runtime, isGlobal, *classDef );
         }
     }
     // var x = <another_var>
@@ -69,7 +69,7 @@ ObjectValue* VarDeclaration::execute( ObjectValue& outValue, Runtime& runtime, b
         classDef = runtime.m_currentNamespace2->getClassDef( identifier->m_name, identifier->m_namespaceSpec );
         if ( classDef != nullptr )
         {
-            outValue = ::createClassObject( runtime, isGlobal, *classDef );
+            ::createClassObject( outValue, runtime, isGlobal, *classDef );
         }
         else
         {
@@ -99,13 +99,23 @@ ObjectValue* DotExpr::execute( ObjectValue& outValue, Runtime& runtime, bool isG
     LOG( "m_token.type == Dot" );
     // <m_expr2>.<m_expr>
     m_expr2->execute( outValue, runtime, isGlobal );
-    if ( outValue.m_type != ot_class_ptr )
+    if ( outValue.m_type != ot_class_shared_ptr && outValue.m_type != ot_class_weak_ptr )
     {
         throw runtime_error( runtime, "cannot applay operator '.' ", m_token );
     }
     else
     {
-        ClassObject* obj = outValue.m_classObjPtr;
+        ClassObject* obj = nullptr;
+
+        if ( outValue.m_type == ot_class_shared_ptr )
+        {
+            obj = outValue.m_classSharedPtr.get();
+        }
+
+        if ( outValue.m_type == ot_class_weak_ptr )
+        {
+            throw runtime_error( runtime, "todo '.' ", m_token );
+        }
 
         if ( m_expr->type() == et_identifier )
         {

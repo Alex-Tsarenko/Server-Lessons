@@ -248,10 +248,11 @@ protected:
         switch ( m_tokenIt->type )
         {
             case Var:
+            case Ref:
             {
                 if constexpr (isGlobal)
                 {
-                    auto* varDef = parseVar();
+                    auto* varDef = parseVar( (m_tokenIt->type==Var) ? expr::is_shared_obj : expr::is_weak_ref );
                     LOG( "global Var: " << varDef->m_identifierName )
                     if ( ! currentNamespace().emplaceVar( varDef->m_identifierName, varDef ) )
                     {
@@ -260,7 +261,7 @@ protected:
 
                     return nullptr;
                 }
-                auto* varDef = parseVar();
+                auto* varDef = parseVar( (m_tokenIt->type==Var) ? expr::is_shared_obj : expr::is_weak_ref );
                 LOG( "local Var: " << varDef->m_identifierName )
                 return varDef;
             }
@@ -844,7 +845,7 @@ protected:
         m_namespaceStack.pop();
     }
 
-    expr::VarDeclaration* parseVar( bool isClassMember = false )
+    expr::VarDeclaration* parseVar( expr::ObjectRefType objectRefType, bool isClassMember = false )
     {
         //
         // "var" <indentifier> [ "=" <expression> ]
@@ -886,7 +887,7 @@ protected:
             _shiftToNextToken();
         }
         
-        auto* varExpr = new expr::VarDeclaration{varName,varType};
+        auto* varExpr = new expr::VarDeclaration{ varName, varType, objectRefType };
         varExpr->m_initValue = expr;
         
         return varExpr;
@@ -976,13 +977,12 @@ protected:
                 _shiftToNextToken();
             }
             
-            //todo++ var&
-            if ( tokenIs(Var) )
+            if ( tokenIs(Var) || tokenIs(Ref) )
             {
                 _shiftToNextTokenIf(Identifier);
 
                 // parse variable
-                auto* varDef = parseVar( true );
+                auto* varDef = parseVar( (m_tokenIt->type==Var) ? expr::is_shared_obj : expr::is_weak_ref, true );
                 varDef->m_isPrivate = isPrivate;
                 thisClassOrNamespace->m_variableMap[varDef->m_identifierName] = varDef;
             }

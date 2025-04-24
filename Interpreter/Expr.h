@@ -453,18 +453,26 @@ struct DotExpr: public BinaryOpExpression
     ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override;
 };
 
+enum ObjectRefType { is_shared_obj, is_weak_ref, is_cpp_pointer };
+
 struct VarDeclaration: public Expression
 {
-    VarDeclaration( const Token& token, const Token* varType ) : Expression(token), m_identifierName(token.lexeme), m_type(varType) {}
+    VarDeclaration( const Token& token, const Token* varType, ObjectRefType objectRefType )
+        :   Expression(token),
+            m_identifierName(token.lexeme),
+            m_type(varType),
+            m_objectRefType(objectRefType)
+    {}
 
     bool               m_isPrivate = false;
     bool               m_isStatic = false;
+    ObjectRefType      m_objectRefType;
 
     std::string_view   m_identifierName;
     const Token*       m_type;
     Expression*        m_initValue;
     //TODO: Value
-    
+
     virtual enum ExpressionType type() override { return et_var_decl; }
 
     ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override;
@@ -644,7 +652,7 @@ struct IdentifierExpr : public Expression
 
         if ( auto* classDef = runtime.m_currentNamespace2->getClassDef(m_name, m_namespaceSpec); classDef != nullptr )
         {
-            outValue = createClassObject( runtime, isGlobal, *classDef );
+            createClassObject( outValue, runtime, isGlobal, *classDef );
             return &outValue;
         }
 

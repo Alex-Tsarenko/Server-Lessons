@@ -23,5 +23,7 @@ struct ClassObject
 //        }
     }
 
-    ~ClassObject() { m_members.clear(); }
+    ~ClassObject() {
+        m_members.clear();
+    }
 };

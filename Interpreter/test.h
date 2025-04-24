@@ -1,23 +1,34 @@
 
 //var a = ns::ClassA;
 
+// pointer ~ ref
+// var* pointer = cpp::open();
+
+// shared_ptr
+// weak_ref
+
+var aGlobal = ClassA;
+
 func main()
 {
     //::A1::A2::test();
     //var xxx:int;
     //print("TEST: \(A1::A2::f11())\n";
 
-    var a = ClassA;
+    ref a = aGlobal;
     //var a = ::ns::ClassA();
     //print("TEST: \(xxx)\n";
 
     a = ::ns::ClassA;
+    
     print("TEST: \(a.m_int)\n";
 }
 
 class ClassA
 {
     func ClassA() {}
+
+    //func destructor() {  print("destructor"); }
 
     var m_int = "--ффф--";
 
