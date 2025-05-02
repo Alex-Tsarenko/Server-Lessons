@@ -66,6 +66,8 @@ struct Runtime
         return nullptr;
     }
 
+    void dbgPrintLine( const std::string& label, expr::Expression& e );
+
 private:
     void initGlobalVariablesR( expr::ClassOrNamespace& namespaceRef );
 };

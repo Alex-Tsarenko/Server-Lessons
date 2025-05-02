@@ -34,7 +34,7 @@ struct ClassOrNamespace: public Expression
     std::map<std::string_view,ClassOrNamespace*>    m_namespaceMap;
     
     std::map<std::string_view,FuncDefinition*>      m_functionMap;
-    std::map< std::string_view,VarDeclaration*>     m_variableMap; // global/static variable map
+    std::map< std::string_view,VarDeclaration*>     m_variableDeclMap; // global/static variable map
 
     // Only for classes
     std::vector<BaseClassInfo>                           m_baseClasses;
@@ -49,6 +49,16 @@ public:
     ClassOrNamespace( bool isClass, const std::string_view& name, ClassOrNamespace* parentNamespace )
         : m_isClass(isClass), m_name(name), m_parent(parentNamespace)
     {}
+
+    ~ClassOrNamespace()
+    {
+        LOG("~ClassOrNamespace()");
+        for( auto& [key,value] : m_variableValueMap )
+        {
+            LOG( "left:?? " << (void*)&value );
+        }
+        //assert(0);
+    }
 
 public:
     
@@ -68,7 +78,7 @@ public:
 
     bool emplaceVar( const std::string_view& name, VarDeclaration* varDecl )
     {
-        auto result = m_variableMap.emplace( name, varDecl );
+        auto result = m_variableDeclMap.emplace( name, varDecl );
         return result.second;
     }
     
@@ -113,7 +123,7 @@ public:
     
     VarDeclaration* getVarDecl( const std::string_view& name )
     {
-        if ( auto it = m_variableMap.find( name ); it != m_variableMap.end() )
+        if ( auto it = m_variableDeclMap.find( name ); it != m_variableDeclMap.end() )
         {
             return it->second;
         }

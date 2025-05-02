@@ -1,49 +1,130 @@
+weak_ptr ptr;
 
-//var a = ns::ClassA;
-
-// pointer ~ ref
-// var* pointer = cpp::open();
-
-// shared_ptr
-// weak_ref
-
-var aGlobal = ClassA;
-
-func main()
+func f()
 {
-    //::A1::A2::test();
-    //var xxx:int;
-    //print("TEST: \(A1::A2::f11())\n";
-
-    ref a = aGlobal;
-    //var a = ::ns::ClassA();
-    //print("TEST: \(xxx)\n";
-
-    a = ::ns::ClassA;
-    
-    print("TEST: \(a.m_int)\n";
+    var sharedClassA = ClassA;
+    ptr = sharedClassA;
+    print("TEST: \(ptr.m_str)\n";
 }
+
+ func main()
+ {
+    f();
+
+    //print("TEST: \(ptr.m_str)\n";
+ }
+
+// var aGlobal = ClassA;
+
 
 class ClassA
 {
-    func ClassA() {}
+   func ClassA() {}
 
-    //func destructor() {  print("destructor"); }
+   //func destructor() {  print("destructor"); }
 
-    var m_int = "--ффф--";
-
-    func f() { return "class-a";}
+   var m_str = "--ффф--";
 }
 
-namespace ns
-{
-    class ClassA
-    {
-        func ClassA() {}
 
-        var m_int = "--110--";
+//namespace ns
+//{
+//    class ClassA
+//    {
+//        func ClassA() {}
+//
+//        var m_int = "--110--";
+//
+//        func f() { return "class-a";}
+//    }
+//}
 
-        func f() { return "class-a";}
-    }
-}
 
+
+//
+//class OwnerClass
+//{
+//    var m_member = OwnerClass2(self);
+//}
+//
+//class MemeberClass
+//{
+//    weak_ref m_backRef: OwnerClass;
+//
+//    MemeberClass( backRef: OwnerClass ) { m_backRef = backRef; }
+//}
+//
+//func main()
+//{
+//    if ( (it,it2) = aHead.find(101) )
+//    {
+//    }
+//
+//    if ( aHead.m_next )
+//    {
+//        print("TEST: \(aHead.m_next.m_int)\n";
+//        //...
+//    }
+//
+//    try {
+//        print("TEST: \(aHead.m_next.m_int)\n";
+//        //...
+//    }
+//
+//    print("TEST: \(aHead.m_next.m_int)\n" ?? ;
+//
+//    ii = aHead.m_next.m_int ?? 0;
+//
+////    a = ::ns::ClassA;
+////    print("TEST: \(a.m_int)\n";
+//}
+
+//class ClassA
+//{
+//    func ClassA() {}
+//
+//    //func destructor() {  print("destructor"); }
+//
+//    var m_int = "--ффф--";
+//
+//    func f() { return "class-a";}
+//}
+//
+//namespace ns
+//{
+//    class ClassA
+//    {
+//        func ClassA() {}
+//
+//        var m_int = "--110--";
+//
+//        func f() { return "class-a";}
+//    }
+//}
+
+
+
+//var shared = ClassA;
+//weak_ptr shared2 = shared;
+//
+//func f5()
+//{
+//    if ( not a )
+//    {
+//        return_error ("not a",-1);
+//    }
+//
+//    var aCopy = a.copy();
+//
+//    weak_ptr aRef = a;
+//
+//    return 101;
+//}
+//
+//func f6()
+//{
+//    if ( err = fun().error_code() )
+//    {
+//
+//    }
+//}

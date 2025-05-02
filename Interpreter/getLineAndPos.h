@@ -3,7 +3,7 @@
 #include <string>
 #include "Token.h"
 
-inline void getLineAndPos( const std::string_view text, const Token& token, int& line, int& pos, int& endPos )
+inline void getLineAndPos( const std::string_view& text, const Token& token, int& line, int& pos, int& endPos )
 {
     for( const char* p = text.data(); p < text.data() + text.size(); ++p )
     {

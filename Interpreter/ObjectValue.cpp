@@ -11,7 +11,7 @@ ObjectValue::~ObjectValue()
 
     if ( m_type == ot_string )
     {
-        delete m_stringValue;
+        m_stringValue.~string();
     }
     else if ( m_type == ot_class_ptr )
     {
@@ -32,9 +32,11 @@ void createClassObject( ObjectValue& outValue, Runtime& runtime, bool isGlobal, 
     assert( outValue.m_type == ot_null );
 
     outValue.m_type = ot_class_shared_ptr;
-    new (&outValue.m_classSharedPtr) std::shared_ptr<ClassObject>( std::make_shared<ClassObject>( &classDef ));
 
-    for( auto [name,varDecl] : classDef.m_variableMap )
+//    new (&outValue.m_classSharedPtr) std::shared_ptr<ClassObject>( std::make_shared<ClassObject>( &classDef ));
+    new (&outValue.m_classSharedPtr) std::shared_ptr<ClassObject>( new ClassObject(&classDef) );
+
+    for( auto [name,varDecl] : classDef.m_variableDeclMap )
     {
         ObjectValue varValue;
         varDecl->execute( varValue, runtime, isGlobal );

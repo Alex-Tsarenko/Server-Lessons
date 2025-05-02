@@ -2,6 +2,9 @@
 
 #include <string>
 #include <iostream>
+#include <assert.h>
+
+#include "Logs.h"
 
 namespace expr
 {
@@ -53,25 +56,25 @@ struct ObjectValue
     ObjectType m_type;
     uint8_t    m_isReturned = 0;
 
-    union 
+    union
     {
         bool            m_boolValue;
         uint64_t        m_intValue;
         double          m_doubleValue;
 
-        std::string*    m_stringValue;
+        std::string     m_stringValue;
 
         // TODO: for C++ support
         ClassObject*                  m_classObjPtr;
-        
+
         std::shared_ptr<ClassObject>  m_classSharedPtr;
         std::weak_ptr<ClassObject>    m_classWeakPtr;
     };
-    
+
     ObjectValue()
     {
         m_type = ot_null;
-        m_stringValue = nullptr;
+        m_intValue = 0;
     }
 
     ~ObjectValue();
@@ -93,17 +96,34 @@ struct ObjectValue
             return *this;
         }
 
-        m_type = val.m_type;
+        if ( m_type != val.m_type )
+        {
+            this->~ObjectValue();
+            m_type = val.m_type;
+            if ( m_type == ot_class_shared_ptr )
+            {
+                new (&m_classSharedPtr) std::shared_ptr<ClassObject>();
+            }
+            else if ( m_type == ot_class_weak_ptr )
+            {
+                new (&m_classWeakPtr) std::weak_ptr<ClassObject>();
+            }
+            else if ( m_type == ot_string )
+            {
+                new (&m_stringValue) std::string();
+            }
+        }
 
         switch( m_type )
         {
             case ot_null:   break;
-            case ot_bool:   m_boolValue = val.m_boolValue; break;
-            case ot_int:    m_intValue = val.m_intValue; break;
+            case ot_bool:   m_boolValue   = val.m_boolValue;   break;
+            case ot_int:    m_intValue    = val.m_intValue;    break;
             case ot_double: m_doubleValue = val.m_doubleValue; break;
-            case ot_string: m_stringValue = new std::string{ *val.m_stringValue}; break;
-            case ot_class_shared_ptr: m_classSharedPtr = val.m_classSharedPtr; break; //throw std::runtime_error( "unsupported: = " );
-            case ot_class_weak_ptr: m_classWeakPtr = val.m_classWeakPtr; break;
+            case ot_string: m_stringValue = val.m_stringValue; break;
+            
+            case ot_class_shared_ptr: m_classSharedPtr = val.m_classSharedPtr; break;
+            case ot_class_weak_ptr:   m_classWeakPtr   = val.m_classWeakPtr;   break;
         }
         return *this;
     }
@@ -115,7 +135,23 @@ struct ObjectValue
             return *this;
         }
 
-        m_type = val.m_type;
+        if ( m_type != val.m_type )
+        {
+            this->~ObjectValue();
+            m_type = val.m_type;
+            if ( m_type == ot_class_shared_ptr )
+            {
+                new (&m_classSharedPtr) std::shared_ptr<ClassObject>();
+            }
+            else if ( m_type == ot_class_weak_ptr )
+            {
+                new (&m_classWeakPtr) std::weak_ptr<ClassObject>();
+            }
+            else if ( m_type == ot_string )
+            {
+                new (&m_stringValue) std::string();
+            }
+        }
 
         switch( m_type )
         {
@@ -123,13 +159,16 @@ struct ObjectValue
             case ot_bool:   m_boolValue = val.m_boolValue; break;
             case ot_int:    m_intValue = val.m_intValue; break;
             case ot_double: m_doubleValue = val.m_doubleValue; break;
-            case ot_string: m_stringValue = val.m_stringValue; val.m_stringValue = nullptr; break;
-            case ot_class_ptr:  m_classObjPtr = val.m_classObjPtr; val.m_classObjPtr = nullptr; break;
-            case ot_class_shared_ptr:  
+            case ot_string: m_stringValue = std::move(val.m_stringValue); break;
+            case ot_class_ptr:  assert(0); break;
+            case ot_class_shared_ptr:
                 m_classSharedPtr = std::move(val.m_classSharedPtr);
                 val.m_classSharedPtr.reset();
                 break;
-            case ot_class_weak_ptr:  m_classWeakPtr = std::move(val.m_classWeakPtr); val.m_classWeakPtr.reset(); break;
+            case ot_class_weak_ptr:  
+                m_classWeakPtr = std::move(val.m_classWeakPtr);
+                val.m_classWeakPtr.reset();
+                break;
         }
         return *this;
     }
@@ -142,11 +181,11 @@ struct ObjectValue
             case ot_bool: return m_boolValue ? "<bool:true>" : "<bool:false>";
             case ot_int:  return std::string("<Int:") + std::to_string(m_intValue) + ">";
             case ot_double: return std::string("<Double:") + std::to_string(m_doubleValue) + ">";
-            case ot_string: return std::string("<String:'") + *m_stringValue + "'>";;
+            case ot_string: return std::string("<String:'") + m_stringValue + "'>";;
         }
         return "<unknown-type>";
     }
-    
+
     void toStream( std::ostream& stream )
     {
         switch( m_type )
@@ -155,12 +194,12 @@ struct ObjectValue
             case ot_bool: stream << m_boolValue; break;
             case ot_int: stream << m_intValue; break;
             case ot_double: stream << m_doubleValue; break;
-            case ot_string: stream << *m_stringValue; break;
+            case ot_string: stream << m_stringValue; break;
         }
     }
-    
+
     bool isNull() const { return m_type == ot_null; };
-    
+
     bool boolValue() const
     {
         if ( m_type == ot_bool )
@@ -169,7 +208,7 @@ struct ObjectValue
         }
         RUNTIME_EX;
     };
-    
+
     uint64_t intValue() const
     {
         if ( m_type == ot_int )
@@ -178,7 +217,7 @@ struct ObjectValue
         }
         RUNTIME_EX;
     };
-    
+
     double doubleValue() const
     {
         if ( m_type == ot_int )
@@ -196,7 +235,7 @@ struct ObjectValue
     {
         if ( m_type == ot_string )
         {
-            return *m_stringValue;
+            return m_stringValue;
         }
         RUNTIME_EX;
     };
@@ -204,9 +243,9 @@ struct ObjectValue
 
     void setBool( bool newValue )
     {
-        if ( m_type == ot_string )
+        if ( m_type != ot_bool )
         {
-            delete m_stringValue;
+            this->~ObjectValue();
         }
         m_type = ot_bool;
         m_boolValue = newValue;
@@ -214,9 +253,9 @@ struct ObjectValue
 
     void setInt( int newValue )
     {
-        if ( m_type == ot_string )
+        if ( m_type != ot_int )
         {
-            delete m_stringValue;
+            this->~ObjectValue();
         }
         m_type = ot_int;
         m_intValue = newValue;
@@ -224,9 +263,9 @@ struct ObjectValue
 
     void setDouble( int newValue )
     {
-        if ( m_type == ot_string )
+        if ( m_type != ot_double )
         {
-            delete m_stringValue;
+            this->~ObjectValue();
         }
         m_type = ot_double;
         m_doubleValue = newValue;
@@ -236,12 +275,27 @@ struct ObjectValue
     {
         if ( m_type == ot_string )
         {
-            *m_stringValue = newValue;
+            m_stringValue = newValue;
         }
         else
         {
+            this->~ObjectValue();
             m_type = ot_string;
-            m_stringValue = new std::string{newValue};
+            new (&m_stringValue) std::string(newValue);
+        }
+    }
+
+    void setString( const std::string_view& newValue )
+    {
+        if ( m_type == ot_string )
+        {
+            m_stringValue = std::string(newValue);
+        }
+        else
+        {
+            this->~ObjectValue();
+            m_type = ot_string;
+            new (&m_stringValue) std::string(newValue);
         }
     }
 };

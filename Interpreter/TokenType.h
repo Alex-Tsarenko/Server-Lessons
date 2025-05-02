@@ -9,7 +9,7 @@ enum TokenType
     ClassKw,
     Private,
     Var,
-    Ref,
+    WeakPtr,
     Print,
     Func,
     Return,

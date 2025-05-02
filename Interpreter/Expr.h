@@ -203,14 +203,15 @@ struct ExpressionList: public Expression
     
     virtual ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
-        ObjectValue& result = outValue;
         for( auto& statement: m_list )
         {
-            LOG("statement->m_token: " << statement->m_token.lexeme )
+            ObjectValue result;
+            LOG("ExpressionList: next statement->m_token: " << statement->m_token.lexeme )
             statement->execute( result, runtime, isGlobal );
             if ( result.m_isReturned )
             {
-                return;
+                outValue = result;
+                return nullptr;
             }
 
             if ( statement->type() == et_var_decl )
@@ -222,7 +223,7 @@ struct ExpressionList: public Expression
                 }
             }
         }
-        return;
+        return nullptr;
     }
 };
 
@@ -451,6 +452,7 @@ struct DotExpr: public BinaryOpExpression
     virtual enum ExpressionType type() override { return et_dot; }
 
     ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override;
+    ObjectValue* executeRight( ObjectValue& outValue, Runtime& runtime, bool isGlobal );
 };
 
 enum ObjectRefType { is_shared_obj, is_weak_ref, is_cpp_pointer };
@@ -462,7 +464,8 @@ struct VarDeclaration: public Expression
             m_identifierName(token.lexeme),
             m_type(varType),
             m_objectRefType(objectRefType)
-    {}
+    {
+    }
 
     bool               m_isPrivate = false;
     bool               m_isStatic = false;
@@ -570,7 +573,7 @@ struct IdentifierExpr : public Expression
         if ( isGlobal )
         {
             LOG( "execute var ???: " << m_name )
-            if ( auto it = runtime.m_currentNamespace2->m_variableMap.find(m_name); it != runtime.m_currentNamespace2->m_variableMap.end() )
+            if ( auto it = runtime.m_currentNamespace2->m_variableDeclMap.find(m_name); it != runtime.m_currentNamespace2->m_variableDeclMap.end() )
             {
                 if ( auto it = runtime.m_currentNamespace2->m_variableValueMap.find(m_name); it != runtime.m_currentNamespace2->m_variableValueMap.end() )
                 {
@@ -644,8 +647,12 @@ struct IdentifierExpr : public Expression
 
         }
 
+        LOG( "runtime.m_currentNamespace2: " << m_name << " '" << runtime.m_currentNamespace2->m_name << "' " << m_namespaceSpec.size() )
+        std::vector<std::string_view> namespaceSpec0000;
+        LOG( "runtime.m_currentNamespace2: " << int(runtime.m_currentNamespace2->getVarValue( std::string_view("ptr"), namespaceSpec0000)->m_type) )
         if ( auto* value = runtime.m_currentNamespace2->getVarValue(m_name, m_namespaceSpec); value != nullptr )
         {
+            runtime.dbgPrintLine( "IdentifierExpr", *this );
             outValue = *value;
             return value;
         }
@@ -750,7 +757,7 @@ struct StringExpr : public Expression
     ObjectValue* execute( ObjectValue& outValue, Runtime&, bool isGlobal ) override
     {
         outValue.m_type = ot_string;
-        outValue.m_stringValue = new std::string{ m_value };
+        outValue.setString( m_value );
         return nullptr;
     }
 
@@ -825,21 +832,39 @@ struct AssignmentStatement: public Expression
     AssignmentStatement( const Token& token, expr::Expression* left, expr::Expression* right ) 
     : Expression(token), m_left(left), m_right(right)
     {
+        LOG( "AssignmentStatement: " << left->m_token.lexeme )
     }
 
     virtual enum ExpressionType type() override { return et_assignment; }
     
     ObjectValue* execute( ObjectValue& outValue, Runtime& runtime, bool isGlobal ) override
     {
+        runtime.dbgPrintLine( "AssignmentStatement", *this );
         auto* left = m_left->execute( outValue, runtime, isGlobal );
         if ( left == nullptr )
         {
             throw runtime_ex3( "expression is not assignable: ", m_left->m_token);
         }
-        auto* retValue = m_right->execute( outValue, runtime, isGlobal );
-        //TODO:
+        auto* right = m_right->execute( outValue, runtime, isGlobal );
+
+        if ( left->m_type == ot_class_weak_ptr && (right->m_type != ot_class_shared_ptr && right->m_type != ot_class_weak_ptr) )
+        {
+            throw runtime_ex3( "cannot assign not shared ptr to weak ptr: ", m_right->m_token );
+        }
+        else
+        {
+            LOG( "left: " << (void*)left )
+            if ( left->m_type == ot_class_weak_ptr && right->m_type == ot_class_shared_ptr)
+            {
+                left->m_classWeakPtr = right->m_classSharedPtr;
+                outValue = *left;
+                return left;
+            }
+            assert(0);//todo
+        }
+
         *left = outValue;
-        return retValue;
+        return left;
     }
 };
 
@@ -937,7 +962,7 @@ struct FunctionCall: public Expression
 
 };
 
-struct If : public Expression
+struct IfStatement : public Expression
 {
     Expression*             m_condition;
     ExpressionList          m_yesBlock;

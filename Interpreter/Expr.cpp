@@ -28,6 +28,11 @@ ObjectValue* VarDeclaration::execute( ObjectValue& outValue, Runtime& runtime, b
                 {
                     throw runtime_ex3( "unknown type: " , *m_type );
                 }
+
+                assert( outValue.m_type == ot_null );
+                outValue.m_type = ot_class_weak_ptr;
+                new (&outValue.m_classWeakPtr) std::weak_ptr<ClassObject>();
+                return &outValue;
             }
         }
         else if ( m_type->type != Int && m_type->type != Float && m_type->type != String )
@@ -39,6 +44,13 @@ ObjectValue* VarDeclaration::execute( ObjectValue& outValue, Runtime& runtime, b
     // var <var_name> = <init_value>
     if ( m_initValue == nullptr )
     {
+        if ( m_objectRefType == is_weak_ref )
+        {
+            assert( outValue.m_type == ot_null );
+            outValue.m_type = ot_class_weak_ptr;
+            new (&outValue.m_classWeakPtr) std::weak_ptr<ClassObject>();
+            return &outValue;
+        }
         return nullptr;
     }
 
@@ -77,8 +89,8 @@ ObjectValue* VarDeclaration::execute( ObjectValue& outValue, Runtime& runtime, b
 
             if ( value == nullptr )
             {
-                LOG( "Unknown value: " << m_initValue->m_token.lexeme )
-                throw runtime_ex3( "Unknown value: ", m_initValue->m_token );
+                LOG( "Unknown idenifier or class name: " << m_initValue->m_token.lexeme )
+                throw runtime_ex3( "Unknown idenifier or class name: ", m_initValue->m_token );
             }
         }
     }
@@ -98,36 +110,53 @@ ObjectValue* DotExpr::execute( ObjectValue& outValue, Runtime& runtime, bool isG
 {
     LOG( "m_token.type == Dot" );
     // <m_expr2>.<m_expr>
-    m_expr2->execute( outValue, runtime, isGlobal );
-    if ( outValue.m_type != ot_class_shared_ptr && outValue.m_type != ot_class_weak_ptr )
+    ObjectValue unused;
+    ObjectValue* leftValueRef =  m_expr2->execute( unused, runtime, isGlobal );
+    if ( leftValueRef->m_type != ot_class_shared_ptr && leftValueRef->m_type != ot_class_weak_ptr )
     {
         throw runtime_error( runtime, "cannot applay operator '.' ", m_token );
     }
     else
     {
-        ClassObject* obj = nullptr;
+        std::shared_ptr<ClassObject> sharedPtr;
+        std::shared_ptr<ClassObject>* classObjRef = nullptr;
 
-        if ( outValue.m_type == ot_class_shared_ptr )
+        if ( leftValueRef->m_type == ot_class_shared_ptr )
         {
-            obj = outValue.m_classSharedPtr.get();
+            classObjRef = &leftValueRef->m_classSharedPtr;
         }
 
-        if ( outValue.m_type == ot_class_weak_ptr )
+        if ( leftValueRef->m_type == ot_class_weak_ptr )
         {
-            throw runtime_error( runtime, "todo '.' ", m_token );
+            sharedPtr = leftValueRef->m_classWeakPtr.lock();
+            classObjRef = &sharedPtr;
         }
 
         if ( m_expr->type() == et_identifier )
         {
+            std::shared_ptr<ClassObject>& classObj = *classObjRef;
+
             IdentifierExpr* id = (IdentifierExpr*) m_expr;
-            if ( auto it = obj->m_members.find( id->m_name ); it == obj->m_members.end() )
+            if ( auto it = classObj->m_members.find( id->m_name ); it == classObj->m_members.end() )
             {
-                auto message = "no member named '" + std::string(id->m_name) + "' in '" + std::string(obj->m_definition->m_name) + "'";
+                auto message = "no member named '" + std::string(id->m_name) + "' in '" + std::string(classObj->m_definition->m_name) + "'";
                 throw runtime_error( runtime, message , m_expr->m_token );
             }
             else
             {
                 outValue = it->second;
+                if ( outValue.m_type == ot_class_weak_ptr )
+                {
+                    if ( outValue.m_classWeakPtr.lock() )
+                    {
+                        return &it->second;
+                    }
+                    else
+                    {
+                        LOG("error");
+                    }
+
+                }
                 return &it->second;
             }
         }

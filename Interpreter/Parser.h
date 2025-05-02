@@ -248,7 +248,7 @@ protected:
         switch ( m_tokenIt->type )
         {
             case Var:
-            case Ref:
+            case WeakPtr:
             {
                 if constexpr (isGlobal)
                 {
@@ -317,13 +317,23 @@ protected:
                 }
                 else if ( tokenIs(Assignment) )
                 {
+                    const Token& assignmentToken = *m_tokenIt;
+
                     _shiftToNextToken();
                     auto* ex2 = parseExpr();
                     if ( tokenIs(Semicolon) )
                     {
                         _shiftToNextToken();
                     }
-                    auto* assignment = new expr::AssignmentStatement( *m_tokenIt, ex, ex2 );
+                    
+//                    {
+//                        int line=0;
+//                        int pos, endPos;
+//                        getLineAndPos( ex->m_token, line, pos, endPos );
+//                        LOG( "Assignment line: " << line );
+//                    }
+
+                    auto* assignment = new expr::AssignmentStatement( assignmentToken, ex, ex2 );
                     return assignment;
                 }
                 throw syntax_error( this, std::string("unexpected ")+gTokenTypeStrings[RightBrace], *m_tokenIt );
@@ -453,7 +463,12 @@ protected:
         
         // 2-d pass of shunting-yard algorithm
         auto* result = constructExpr();
-        
+
+        if ( m_output.size() > 0 )
+        {
+            throw syntax_error( this, std::string("bad expression (expected operator): "),  *(m_tokenIt-1) );
+        }
+
         // Print parsed expr
         //result->printExpr("");
         //LOGX("\n");
@@ -977,14 +992,14 @@ protected:
                 _shiftToNextToken();
             }
             
-            if ( tokenIs(Var) || tokenIs(Ref) )
+            if ( tokenIs(Var) || tokenIs(WeakPtr) )
             {
                 _shiftToNextTokenIf(Identifier);
 
                 // parse variable
                 auto* varDef = parseVar( (m_tokenIt->type==Var) ? expr::is_shared_obj : expr::is_weak_ref, true );
                 varDef->m_isPrivate = isPrivate;
-                thisClassOrNamespace->m_variableMap[varDef->m_identifierName] = varDef;
+                thisClassOrNamespace->m_variableDeclMap[varDef->m_identifierName] = varDef;
             }
             else if ( tokenIs(Func) )
             {
@@ -1210,6 +1225,10 @@ protected:
     expr::Expression* parseIf()
     {
         _shiftToNextTokenIf( LeftParen );
+
+        if ( _nextTokenIs(Colon) )
+        {
+        }
         //???
         throw syntax_error( this, std::string("TODO: "), *m_tokenIt );
         return nullptr;
