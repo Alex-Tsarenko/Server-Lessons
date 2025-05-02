@@ -670,11 +670,11 @@ struct IdentifierExpr : public Expression
 
 };
 
-struct IntNumber : public Expression
+struct IntLiteral : public Expression
 {
     int64_t         m_value;
     
-    IntNumber( const Token& lexeme ) : Expression(lexeme)
+    IntLiteral( const Token& lexeme ) : Expression(lexeme)
     {
         m_value = std::stol( std::string(m_token.lexeme) );
     }
@@ -699,11 +699,11 @@ struct IntNumber : public Expression
     }
 };
 
-struct FloatNumber : public Expression
+struct FloatLiteral : public Expression
 {
     double          m_value;
     
-    FloatNumber( const Token& lexeme ) : Expression(lexeme)
+    FloatLiteral( const Token& lexeme ) : Expression(lexeme)
     {
         m_value = std::stod( std::string(m_token.lexeme) );
     }
@@ -728,16 +728,16 @@ struct FloatNumber : public Expression
     }
 };
 
-struct StringExpr : public Expression
+struct StringLiteral : public Expression
 {
     std::string_view m_value;
 
-    StringExpr( const Token& lexeme ) : Expression(lexeme)
+    StringLiteral( const Token& lexeme ) : Expression(lexeme)
     {
         m_value = m_token.lexeme;
     }
     
-    StringExpr( const Token& lexeme, const char* begin, const char* end ) : Expression(lexeme)
+    StringLiteral( const Token& lexeme, const char* begin, const char* end ) : Expression(lexeme)
     {
         m_value = std::string_view( begin, end );
     }

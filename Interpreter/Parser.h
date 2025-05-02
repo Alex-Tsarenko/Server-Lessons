@@ -564,19 +564,19 @@ protected:
                 case Int:
                 {
                     LOG( "@@@ Int to output: " << m_tokenIt->lexeme )
-                    m_output.push_back( new expr::IntNumber{ *m_tokenIt } );
+                    m_output.push_back( new expr::IntLiteral{ *m_tokenIt } );
                     break;
                 }
                 case Float:
                 {
                     LOG( "@@@ Float to output: " << m_tokenIt->lexeme )
-                    m_output.push_back( new expr::FloatNumber{ *m_tokenIt } );
+                    m_output.push_back( new expr::FloatLiteral{ *m_tokenIt } );
                     break;
                 }
                 case StringLiteral:
                 {
                     LOG( "@@@ Float to output: " << m_tokenIt->lexeme )
-                    m_output.push_back( new expr::StringExpr{ *m_tokenIt } );
+                    m_output.push_back( new expr::StringLiteral{ *m_tokenIt } );
                     break;
                 }
                 case Identifier:
@@ -1063,7 +1063,7 @@ protected:
                 if ( *ptr=='(' )
                 {
                     LOG( "dbg0: " << std::string(startOfLiteral, ptr-1) )
-                    result.push_back( new expr::StringExpr( printStringToken, startOfLiteral, ptr-1 ));
+                    result.push_back( new expr::StringLiteral( printStringToken, startOfLiteral, ptr-1 ));
                     
                     // find right ')'
                     ptr++;
@@ -1116,7 +1116,7 @@ protected:
 
         if ( result.empty() || startOfLiteral!=ptr )
         {
-            result.push_back( new expr::StringExpr( printStringToken, startOfLiteral, ptr ));
+            result.push_back( new expr::StringLiteral( printStringToken, startOfLiteral, ptr ));
         }
         
         return result;
