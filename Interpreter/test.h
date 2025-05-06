@@ -1,17 +1,21 @@
 weak_ptr ptr;
+var shared;
 
 func f()
 {
     var sharedClassA = ClassA;
     ptr = sharedClassA;
-    print("TEST: \(ptr.m_str)\n";
+//    shared = ptr;
+//    print("TEST: \(shared.m_str)\n";
+//    print("TEST: \(ptr.m_str)\n";
 }
 
  func main()
  {
     f();
-
-    //print("TEST: \(ptr.m_str)\n";
+    shared = ptr;
+    //weak_ptr ptr2 = ptr;
+    //print("TEST: \(shared.m_str)\n";
  }
 
 // var aGlobal = ClassA;

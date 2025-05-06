@@ -51,6 +51,13 @@ ObjectValue* VarDeclaration::execute( ObjectValue& outValue, Runtime& runtime, b
             new (&outValue.m_classWeakPtr) std::weak_ptr<ClassObject>();
             return &outValue;
         }
+        if ( m_objectRefType != is_weak_ref )
+        {
+            assert( outValue.m_type == ot_null );
+            outValue.m_type = ot_class_shared_ptr;
+            new (&outValue.m_classWeakPtr) std::shared_ptr<ClassObject>();
+            return &outValue;
+        }
         return nullptr;
     }
 
@@ -123,12 +130,22 @@ ObjectValue* DotExpr::execute( ObjectValue& outValue, Runtime& runtime, bool isG
 
         if ( leftValueRef->m_type == ot_class_shared_ptr )
         {
+            if ( not leftValueRef->m_classSharedPtr )
+            {
+                runtime.printRuntimeError( "variable is not initialised", *m_expr2 );
+                exit(0);
+            }
             classObjRef = &leftValueRef->m_classSharedPtr;
         }
 
         if ( leftValueRef->m_type == ot_class_weak_ptr )
         {
             sharedPtr = leftValueRef->m_classWeakPtr.lock();
+            if ( not sharedPtr )
+            {
+                runtime.printRuntimeError( "weak reference value is unaccessible/expired", *m_expr2 );
+                exit(0);
+            }
             classObjRef = &sharedPtr;
         }
 
@@ -137,6 +154,7 @@ ObjectValue* DotExpr::execute( ObjectValue& outValue, Runtime& runtime, bool isG
             std::shared_ptr<ClassObject>& classObj = *classObjRef;
 
             IdentifierExpr* id = (IdentifierExpr*) m_expr;
+            runtime.dbgPrintLine( "todo++", *m_expr2 );
             if ( auto it = classObj->m_members.find( id->m_name ); it == classObj->m_members.end() )
             {
                 auto message = "no member named '" + std::string(id->m_name) + "' in '" + std::string(classObj->m_definition->m_name) + "'";

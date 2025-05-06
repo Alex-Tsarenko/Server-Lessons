@@ -652,7 +652,7 @@ struct IdentifierExpr : public Expression
         LOG( "runtime.m_currentNamespace2: " << int(runtime.m_currentNamespace2->getVarValue( std::string_view("ptr"), namespaceSpec0000)->m_type) )
         if ( auto* value = runtime.m_currentNamespace2->getVarValue(m_name, m_namespaceSpec); value != nullptr )
         {
-            runtime.dbgPrintLine( "IdentifierExpr", *this );
+            //runtime.dbgPrintLine( "IdentifierExpr", *this );
             outValue = *value;
             return value;
         }
@@ -849,14 +849,38 @@ struct AssignmentStatement: public Expression
 
         if ( left->m_type == ot_class_weak_ptr && (right->m_type != ot_class_shared_ptr && right->m_type != ot_class_weak_ptr) )
         {
-            throw runtime_ex3( "cannot assign not shared ptr to weak ptr: ", m_right->m_token );
+            throw runtime_ex3( "cannot assign not class ptr to weak ptr: ", m_right->m_token );
+        }
+        else if ( left->m_type == ot_class_shared_ptr && (right->m_type != ot_class_shared_ptr && right->m_type != ot_class_weak_ptr) )
+        {
+            throw runtime_ex3( "cannot assign not class ptr to weak ptr: ", m_right->m_token );
         }
         else
         {
-            LOG( "left: " << (void*)left )
-            if ( left->m_type == ot_class_weak_ptr && right->m_type == ot_class_shared_ptr)
+            //LOG( "left: " << (void*)left )
+            if ( left->m_type == ot_class_weak_ptr && right->m_type == ot_class_shared_ptr )
             {
                 left->m_classWeakPtr = right->m_classSharedPtr;
+                outValue = *left;
+                return left;
+            }
+            else if ( left->m_type == ot_class_shared_ptr && right->m_type == ot_class_shared_ptr )
+            {
+                left->m_classSharedPtr = right->m_classSharedPtr;
+                outValue = *left;
+                return left;
+            }
+            else if ( left->m_type == ot_class_shared_ptr && right->m_type == ot_class_weak_ptr )
+            {
+                if ( auto shared = right->m_classWeakPtr.lock(); shared )
+                {
+                    left->m_classSharedPtr = shared;
+                }
+                else
+                {
+                    runtime.printRuntimeError( "weak reference value is unaccessible/expired", *m_right );
+                    exit(0);
+                }
                 outValue = *left;
                 return left;
             }

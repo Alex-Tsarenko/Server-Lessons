@@ -59,6 +59,25 @@ void Runtime::run( const std::vector<expr::Expression*>& code, const std::string
     mainCall.execute( retValue, *this, false );
 }
 
+void Runtime::printRuntimeError( const std::string& error, expr::Expression& e )
+{
+    int line=0;
+    int pos, endPos;
+    ::getLineAndPos( m_programText, e.m_token, line, pos, endPos );
+
+    std::cerr << error << ":" << std::endl;
+    std::cerr << ::getLine( m_programText.data(), line ) << std::endl;
+    for( int i=0; i<pos-1; i++ )
+    {
+        std::cerr << ' ';
+    }
+    for( int i=pos; i<endPos; i++ )
+    {
+        std::cerr << '^';
+    }
+    std::cerr << std::endl;
+}
+
 void Runtime::dbgPrintLine( const std::string& label, expr::Expression& e )
 {
     int line=0;

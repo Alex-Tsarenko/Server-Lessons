@@ -51,6 +51,8 @@ void createClassObject( ObjectValue& outValue, Runtime&, bool isGlobal, expr::Cl
 //    ClassA&&    m_aPtr;   // weak ptr
 //}
 
+// Variable value
+//
 struct ObjectValue
 {
     ObjectType m_type;
@@ -62,13 +64,14 @@ struct ObjectValue
         uint64_t        m_intValue;
         double          m_doubleValue;
 
-        std::string     m_stringValue;
+        std::string                   m_stringValue;
+
+        std::shared_ptr<ClassObject>  m_classSharedPtr;
+        std::weak_ptr<ClassObject>    m_classWeakPtr;
 
         // TODO: for C++ support
         ClassObject*                  m_classObjPtr;
 
-        std::shared_ptr<ClassObject>  m_classSharedPtr;
-        std::weak_ptr<ClassObject>    m_classWeakPtr;
     };
 
     ObjectValue()

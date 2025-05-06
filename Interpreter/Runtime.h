@@ -66,6 +66,8 @@ struct Runtime
         return nullptr;
     }
 
+    void printRuntimeError( const std::string& error, expr::Expression& e );
+
     void dbgPrintLine( const std::string& label, expr::Expression& e );
 
 private:
